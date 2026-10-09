@@ -43,6 +43,7 @@ import com.harish.mediaplayer.R
 import com.harish.mediaplayer.domain.model.PlaybackState
 import com.harish.mediaplayer.domain.model.Song
 import com.harish.mediaplayer.ui.common.SongThumbnail
+import com.harish.mediaplayer.ui.common.blockTouchesBehind
 import com.harish.mediaplayer.ui.common.formatDuration
 import kotlin.math.abs
 import kotlinx.coroutines.launch
@@ -79,6 +80,8 @@ fun MiniPlayer(
         onClick = onOpen,
         modifier = modifier
             .fillMaxWidth()
+            // the margin around the card (and above the nav bar) must not tap the song row behind it
+            .blockTouchesBehind()
             .navigationBarsPadding()               // stay above the gesture/nav bar
             .padding(horizontal = 12.dp, vertical = 8.dp)
             .graphicsLayer {

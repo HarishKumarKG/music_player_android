@@ -48,6 +48,7 @@ import com.harish.mediaplayer.domain.model.PlaybackState
 import com.harish.mediaplayer.domain.model.Song
 import com.harish.mediaplayer.ui.brand.BrandRed
 import com.harish.mediaplayer.ui.common.SongArtwork
+import com.harish.mediaplayer.ui.common.blockTouchesBehind
 import com.harish.mediaplayer.ui.common.formatDuration
 import com.harish.mediaplayer.ui.theme.BrandBackground
 
@@ -78,7 +79,8 @@ fun NowPlayingScreen(
         label = "artScale"
     )
 
-    BrandBackground(modifier = Modifier.fillMaxSize()) {
+    // blockTouchesBehind: empty areas of the player must not press the hidden home screen below
+    BrandBackground(modifier = Modifier.fillMaxSize().blockTouchesBehind()) {
         // Blurred copy of the artwork tinting the background (blur needs Android 12+)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             SongArtwork(

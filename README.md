@@ -15,6 +15,8 @@ a rich notification, a sleep timer and polished light & dark themes.
 ## Features
 
 ### Library
+- **Search** – live results as you type, across title, artist, album and file name
+  (case- and accent-insensitive, words in any order)
 - **Four tabs:** All songs · Playlists · Folders · Browse
 - **Songs** – every song on the device with album art, sorted by *date modified* or *name (A–Z / Z–A)*
 - **Favourites** – tap the ♥ on any song
@@ -52,14 +54,6 @@ a rich notification, a sleep timer and polished light & dark themes.
 
 ---
 
-## Screenshots
-
-> Add screenshots to `docs/screenshots/` and reference them here, for example:
->
-> `![Songs](docs/screenshots/songs.png)`
-
----
-
 ## Tech stack
 
 | Area | Library / tool |
@@ -90,7 +84,7 @@ com.harish.mediaplayer
 ├── MainActivity.kt              Theme, splash, navigation host
 ├── domain/                      Pure Kotlin – no Android UI
 │   ├── model/                   Song, SortOrder, Playlist, LibraryData, ThemeMode, PlaybackState
-│   └── library/                 Grouping logic: albums, folders, folder sort, browse tree
+│   └── library/                 Grouping & search: albums, folders, folder sort, browse tree, song search
 ├── data/
 │   ├── song/                    SongRepository (MediaStore + JSON cache), SongJson
 │   ├── library/                 LibraryRepository (favourites & playlists)
@@ -102,7 +96,7 @@ com.harish.mediaplayer
 │   ├── PlayerController.kt      Single entry point the UI uses to control playback
 │   └── PlaybackStateHolder.kt   Shared playback state (StateFlow) for service + UI
 └── ui/
-    ├── home/                    Home screen, header, ViewModel, UI state
+    ├── home/                    Home screen, header, search, ViewModel, UI state
     ├── library/                 Tabs, song row, dialogs, playlists, reorderable list
     ├── player/                  Mini player, full-screen player, queue, sleep timer
     ├── navigation/              Destinations, nav host, side menu
@@ -146,7 +140,7 @@ Install on a connected device:
 ```bash
 ./gradlew testDebugUnitTest
 ```
-Tests cover sorting, album/folder grouping, the browse tree and the play queue / shuffle logic.
+Tests cover sorting, search, album/folder grouping, the browse tree and the play queue / shuffle logic.
 
 ---
 
@@ -188,7 +182,6 @@ see [dontkillmyapp.com](https://dontkillmyapp.com) for step-by-step guides.
 ---
 
 ## Roadmap ideas
-- Search
 - Equalizer
 - Lyrics
 - Home-screen widget

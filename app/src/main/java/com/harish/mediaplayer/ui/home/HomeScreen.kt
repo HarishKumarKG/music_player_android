@@ -37,6 +37,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.harish.mediaplayer.R
 import com.harish.mediaplayer.domain.library.FolderSort
+import com.harish.mediaplayer.domain.library.SongSearchIndex
 import com.harish.mediaplayer.domain.library.songParent
 import com.harish.mediaplayer.domain.model.LibraryData
 import com.harish.mediaplayer.domain.model.PlaybackState
@@ -77,6 +78,7 @@ fun HomeRoute(
     val context = LocalContext.current
     val state by viewModel.state.collectAsStateWithLifecycle()
     val library by viewModel.library.collectAsStateWithLifecycle()
+    val searchIndex by viewModel.searchIndex.collectAsStateWithLifecycle()
     // Comes from the service, so the list, mini player and notification always agree.
     // Kept as a State (not read here!) so the 2x-per-second position updates only redraw
     // the player UI that shows the position, not this whole screen and its song list.
@@ -93,6 +95,7 @@ fun HomeRoute(
     HomeScreen(
         state = state,
         library = library,
+        searchIndex = searchIndex,
         playbackState = playbackState,
         onRefresh = viewModel::refresh,
         onMenuClick = onMenuClick,
@@ -131,6 +134,7 @@ fun HomeRoute(
 private fun HomeScreen(
     state: HomeUiState,
     library: LibraryData,
+    searchIndex: SongSearchIndex?,
     playbackState: State<PlaybackState>,
     onRefresh: () -> Unit,
     onMenuClick: () -> Unit,
@@ -153,6 +157,10 @@ private fun HomeScreen(
     var showNowPlaying by rememberSaveable { mutableStateOf(false) }
     var showQueue by rememberSaveable { mutableStateOf(false) }
     var showSleepTimer by rememberSaveable { mutableStateOf(false) }
+    var searchQuery by rememberSaveable { mutableStateOf<String?>(null) } // null = not searching
+
+    // Back while searching closes search (tabs/folders aren't shown then, so this is the only handler)
+    BackHandler(enabled = searchQuery != null) { searchQuery = null }
 
     // Dialog state
     var infoSong by remember { mutableStateOf<Song?>(null) }
@@ -233,7 +241,11 @@ private fun HomeScreen(
                 }
                 val showRefresh = !(selectedTab == LibraryTab.PLAYLISTS && (openedNow == null || openedNow is SongCollection.CustomPlaylist))
 
-                Column {
+                val query = searchQuery
+                if (query != null) {
+                    // The field keeps the typed text itself; this screen only gets it after a short pause
+                    SearchTopBar(initialQuery = query, onQueryChange = { searchQuery = it }, onClose = { searchQuery = null })
+                } else Column {
                     HomeHeader(
                         onMenuClick = onMenuClick,
                         isDark = isDark,
@@ -242,6 +254,8 @@ private fun HomeScreen(
                         onRefresh = onRefresh.takeIf { showRefresh },
                         sort = headerSort
                     )
+
+                    SearchEntry(onClick = { searchQuery = "" })
 
                     PrimaryTabRow(
                         selectedTabIndex = selectedTab.ordinal,
@@ -269,7 +283,15 @@ private fun HomeScreen(
                         .weight(1f)
                 ) {
                     val opened = openKey?.let(SongCollection::fromKey)
-                    if (opened != null) {
+                    if (query != null) {
+                        SearchResults(
+                            query = query,
+                            index = searchIndex,
+                            sortOrder = sortOrder,
+                            handlers = handlers,
+                            contentPadding = listPadding
+                        )
+                    } else if (opened != null) {
                         OpenedCollection(
                             collection = opened,
                             sortedSongs = sortedSongs,

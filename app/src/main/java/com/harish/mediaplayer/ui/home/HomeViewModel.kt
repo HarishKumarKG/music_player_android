@@ -4,7 +4,14 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.harish.mediaplayer.data.library.LibraryRepository
 import com.harish.mediaplayer.data.song.SongRepository
+import com.harish.mediaplayer.domain.library.SongSearchIndex
 import com.harish.mediaplayer.domain.model.LibraryData
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -35,6 +42,17 @@ class HomeViewModel @Inject constructor(
 
     private val _state = MutableStateFlow(HomeUiState())
     val state: StateFlow<HomeUiState> = _state.asStateFlow()
+
+    /**
+     * Search data, prepared in the background as soon as songs load (and again only when the
+     * song list changes), so the very first letter you type already searches instantly.
+     */
+    val searchIndex: StateFlow<SongSearchIndex?> = _state
+        .map { it.songs }
+        .distinctUntilChanged()
+        .map { songs -> SongSearchIndex(songs) }
+        .flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     // One-time UI messages (shown as a Toast)
     private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 1)

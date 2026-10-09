@@ -7,7 +7,8 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
-import org.json.JSONObject
+import com.harish.mediaplayer.screen.main.model.toJsonArray
+import com.harish.mediaplayer.screen.main.model.toSongs
 import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -27,8 +28,7 @@ class SongRepository @Inject constructor(
     suspend fun loadCached(): List<Song> = withContext(Dispatchers.IO) {
         if (!cacheFile.exists()) return@withContext emptyList()
         try {
-            val array = JSONArray(cacheFile.readText())
-            List(array.length()) { i -> array.getJSONObject(i).toSong() }
+            JSONArray(cacheFile.readText()).toSongs()
         } catch (e: Exception) {
             emptyList() // corrupt/old cache: ignore it, a refresh will rebuild it
         }
@@ -42,36 +42,12 @@ class SongRepository @Inject constructor(
     }
 
     private fun saveCache(songs: List<Song>) {
-        val array = JSONArray()
-        songs.forEach { array.put(it.toJson()) }
+        val array = songs.toJsonArray()
         // Write to a temp file then rename, so a crash mid-write can't leave a broken cache
         val tmp = File(cacheFile.parentFile, cacheFile.name + ".tmp")
         tmp.writeText(array.toString())
         tmp.renameTo(cacheFile)
     }
-
-    private fun Song.toJson() = JSONObject()
-        .put("id", id)
-        .put("title", title)
-        .put("artist", artist)
-        .put("album", album)
-        .put("durationMs", durationMs)
-        .put("sizeBytes", sizeBytes)
-        .put("mimeType", mimeType)
-        .put("dateModifiedSec", dateModifiedSec)
-        .put("path", path)
-
-    private fun JSONObject.toSong() = Song(
-        id = getLong("id"),
-        title = getString("title"),
-        artist = getString("artist"),
-        album = getString("album"),
-        durationMs = getLong("durationMs"),
-        sizeBytes = getLong("sizeBytes"),
-        mimeType = getString("mimeType"),
-        dateModifiedSec = getLong("dateModifiedSec"),
-        path = getString("path")
-    )
 }
 
 private fun fetchSongs(context: Context): List<Song> {

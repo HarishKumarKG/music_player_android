@@ -31,7 +31,10 @@ object PlayerController {
     )
 
     /** Shuffle only reorders the queue; the current song keeps playing. */
-    fun toggleShuffle() = PlaybackStateHolder.toggleShuffle()
+    fun toggleShuffle(context: Context) {
+        PlaybackStateHolder.toggleShuffle()
+        PlaybackPersistence.save(context)
+    }
 
     private fun send(context: Context, action: String) {
         context.startService(Intent(context, MediaPlayerService::class.java).setAction(action))

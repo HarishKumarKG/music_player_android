@@ -7,19 +7,19 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.ContentUris
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.graphics.Bitmap
+import android.graphics.drawable.Icon
+import android.media.MediaMetadata
 import android.media.MediaPlayer
+import android.media.session.MediaSession
+import android.os.Bundle
 import android.os.IBinder
 import android.provider.MediaStore
-import android.support.v4.media.MediaMetadataCompat
-import android.support.v4.media.session.MediaSessionCompat
-import android.support.v4.media.session.PlaybackStateCompat
 import android.util.Log
 import android.util.Size
-import androidx.core.app.NotificationCompat
+import androidx.annotation.DrawableRes
 import androidx.core.app.ServiceCompat
-import android.content.pm.ServiceInfo
-import androidx.media.app.NotificationCompat.MediaStyle
 import com.harish.mediaplayer.MainActivity
 import com.harish.mediaplayer.R
 import com.harish.mediaplayer.screen.main.model.Song
@@ -32,11 +32,15 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import android.media.session.PlaybackState as SessionPlaybackState
 
 /**
  * Plays the queue in PlaybackStateHolder and shows a media notification with
- * artwork + previous / play-pause / next / stop. A MediaSession makes the same
- * controls work on the lock screen, Bluetooth headsets and Android's media panel.
+ * artwork + previous / play-pause / next / stop.
+ *
+ * Uses Android's built-in MediaSession + Notification.MediaStyle (minSdk 30),
+ * so no deprecated androidx.media "compat" classes are needed. The session makes the
+ * same controls work on the lock screen, Bluetooth/headset buttons and the media panel.
  */
 class MediaPlayerService : Service() {
 
@@ -52,6 +56,7 @@ class MediaPlayerService : Service() {
         private const val CHANNEL_ID = "media_playback_channel"
         private const val NOTIFICATION_ID = 1
         private const val CUSTOM_ACTION_STOP = "stop"
+        private const val SAVE_EVERY_TICKS = 10 // 10 x 500ms = save position every 5s while playing
     }
 
     private var mediaPlayer: MediaPlayer? = null
@@ -63,23 +68,23 @@ class MediaPlayerService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var progressJob: Job? = null
 
-    private lateinit var session: MediaSessionCompat
+    private lateinit var session: MediaSession
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
         super.onCreate()
         createChannel()
-        session = MediaSessionCompat(this, "HarishPlayer").apply {
+        session = MediaSession(this, "HarishPlayer").apply {
             // Lock screen / headset / system media panel buttons end up here
-            setCallback(object : MediaSessionCompat.Callback() {
+            setCallback(object : MediaSession.Callback() {
                 override fun onPlay() = resumeOrPlay()
                 override fun onPause() = pause()
                 override fun onSkipToNext() = next()
                 override fun onSkipToPrevious() = previous()
                 override fun onSeekTo(pos: Long) = seekTo(pos)
                 override fun onStop() = stopPlayback()
-                override fun onCustomAction(action: String?, extras: android.os.Bundle?) {
+                override fun onCustomAction(action: String, extras: Bundle?) {
                     if (action == CUSTOM_ACTION_STOP) stopPlayback()
                 }
             })
@@ -104,8 +109,8 @@ class MediaPlayerService : Service() {
 
     private val currentSong: Song? get() = PlaybackStateHolder.state.value.currentSong
 
-    /** Start the song at the queue's current index from the beginning. */
-    private fun playCurrent() {
+    /** Start the song at the queue's current index (optionally from [startAtMs]). */
+    private fun playCurrent(startAtMs: Long = 0L) {
         val song = currentSong ?: return
         mediaPlayer?.release() // always release the old player (no leaks)
         mediaPlayer = null
@@ -119,6 +124,7 @@ class MediaPlayerService : Service() {
             player.release()
             return
         }
+        if (startAtMs > 0) player.seekTo(startAtMs.toInt())
         player.setOnCompletionListener { next() } // auto-play the next song in the queue
         mediaPlayer = player
         isPlaying = true
@@ -134,7 +140,9 @@ class MediaPlayerService : Service() {
     private fun resumeOrPlay() {
         val player = mediaPlayer
         if (player == null) {
-            playCurrent()
+            // Nothing loaded yet, e.g. the app was restarted and the last song was restored:
+            // continue from the saved position instead of the beginning
+            playCurrent(startAtMs = PlaybackStateHolder.state.value.positionMs)
         } else {
             player.start()
             isPlaying = true
@@ -173,31 +181,40 @@ class MediaPlayerService : Service() {
     }
 
     private fun seekTo(positionMs: Long) {
-        mediaPlayer?.seekTo(positionMs.toInt())
+        val player = mediaPlayer
+        if (player == null) {
+            // Restored song not loaded yet: just remember where to start
+            PlaybackStateHolder.update { it.copy(positionMs = positionMs) }
+            PlaybackPersistence.save(this)
+            return
+        }
+        player.seekTo(positionMs.toInt())
         onStateChanged() // update UI + notification right away
     }
 
     /** Stop button: end playback, remove the notification, hide the mini player. */
     private fun stopPlayback() {
+        PlaybackPersistence.save(this) // keep the spot so the next launch can continue
         stopProgressUpdates()
         mediaPlayer?.release()
         mediaPlayer = null
         isPlaying = false
         PlaybackStateHolder.clear()
         session.setPlaybackState(
-            PlaybackStateCompat.Builder().setState(PlaybackStateCompat.STATE_STOPPED, 0, 0f).build()
+            SessionPlaybackState.Builder().setState(SessionPlaybackState.STATE_STOPPED, 0, 0f).build()
         )
-        stopForeground(STOP_FOREGROUND_REMOVE)
+        ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
 
     // ------------------------------------------------------------ state + UI
 
-    /** Push state to the app UI, the MediaSession and the notification. */
+    /** Push state to the app UI, the MediaSession, the notification and the save file. */
     private fun onStateChanged() {
         publishState()
         updateSession()
         currentSong?.let { goForeground(it) }
+        PlaybackPersistence.save(this)
     }
 
     private fun goForeground(song: Song) {
@@ -212,18 +229,20 @@ class MediaPlayerService : Service() {
         PlaybackStateHolder.update {
             it.copy(
                 isPlaying = isPlaying,
-                positionMs = player?.currentPosition?.toLong() ?: 0L,
-                durationMs = player?.duration?.toLong() ?: 0L
+                positionMs = player?.currentPosition?.toLong() ?: it.positionMs,
+                durationMs = player?.duration?.toLong() ?: it.durationMs
             )
         }
     }
 
-    /** While playing, update the position twice a second so progress bars move. */
+    /** While playing, update the position twice a second (and save it every 5s). */
     private fun startProgressUpdates() {
         progressJob?.cancel()
         progressJob = scope.launch {
+            var ticks = 0
             while (isActive) {
                 publishState()
+                if (++ticks % SAVE_EVERY_TICKS == 0) PlaybackPersistence.save(this@MediaPlayerService)
                 delay(500)
             }
         }
@@ -238,26 +257,28 @@ class MediaPlayerService : Service() {
         val song = currentSong ?: return
         val player = mediaPlayer
         session.setMetadata(
-            MediaMetadataCompat.Builder()
-                .putString(MediaMetadataCompat.METADATA_KEY_TITLE, song.title)
-                .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, song.artist)
-                .putString(MediaMetadataCompat.METADATA_KEY_ALBUM, song.album)
-                .putLong(MediaMetadataCompat.METADATA_KEY_DURATION, player?.duration?.toLong() ?: song.durationMs)
-                .putBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART, artwork.takeIf { artworkSongId == song.id })
+            MediaMetadata.Builder()
+                .putString(MediaMetadata.METADATA_KEY_TITLE, song.title)
+                .putString(MediaMetadata.METADATA_KEY_ARTIST, song.artist)
+                .putString(MediaMetadata.METADATA_KEY_ALBUM, song.album)
+                .putLong(MediaMetadata.METADATA_KEY_DURATION, player?.duration?.toLong() ?: song.durationMs)
+                .putBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART, artwork.takeIf { artworkSongId == song.id })
                 .build()
         )
         session.setPlaybackState(
-            PlaybackStateCompat.Builder()
+            SessionPlaybackState.Builder()
                 .setActions(
-                    PlaybackStateCompat.ACTION_PLAY or PlaybackStateCompat.ACTION_PAUSE or
-                        PlaybackStateCompat.ACTION_PLAY_PAUSE or PlaybackStateCompat.ACTION_SKIP_TO_NEXT or
-                        PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS or PlaybackStateCompat.ACTION_SEEK_TO or
-                        PlaybackStateCompat.ACTION_STOP
+                    SessionPlaybackState.ACTION_PLAY or SessionPlaybackState.ACTION_PAUSE or
+                        SessionPlaybackState.ACTION_PLAY_PAUSE or SessionPlaybackState.ACTION_SKIP_TO_NEXT or
+                        SessionPlaybackState.ACTION_SKIP_TO_PREVIOUS or SessionPlaybackState.ACTION_SEEK_TO or
+                        SessionPlaybackState.ACTION_STOP
                 )
                 // Android 13+ builds the media controls from the session, so Stop is added here too
-                .addCustomAction(CUSTOM_ACTION_STOP, "Stop", R.drawable.baseline_close_24)
+                .addCustomAction(
+                    SessionPlaybackState.CustomAction.Builder(CUSTOM_ACTION_STOP, "Stop", R.drawable.baseline_close_24).build()
+                )
                 .setState(
-                    if (isPlaying) PlaybackStateCompat.STATE_PLAYING else PlaybackStateCompat.STATE_PAUSED,
+                    if (isPlaying) SessionPlaybackState.STATE_PLAYING else SessionPlaybackState.STATE_PAUSED,
                     player?.currentPosition?.toLong() ?: 0L,
                     if (isPlaying) 1f else 0f // lets the system move the seek bar by itself
                 )
@@ -307,29 +328,32 @@ class MediaPlayerService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
+    private fun action(@DrawableRes icon: Int, title: String, intent: PendingIntent): Notification.Action =
+        Notification.Action.Builder(Icon.createWithResource(this, icon), title, intent).build()
+
     private fun buildNotification(song: Song): Notification {
         val playPause = if (isPlaying) {
-            NotificationCompat.Action(R.drawable.baseline_pause_24, "Pause", serviceIntent(ACTION_TOGGLE, 1))
+            action(R.drawable.baseline_pause_24, "Pause", serviceIntent(ACTION_TOGGLE, 1))
         } else {
-            NotificationCompat.Action(R.drawable.baseline_play_arrow_24, "Play", serviceIntent(ACTION_TOGGLE, 1))
+            action(R.drawable.baseline_play_arrow_24, "Play", serviceIntent(ACTION_TOGGLE, 1))
         }
 
-        return NotificationCompat.Builder(this, CHANNEL_ID)
+        return Notification.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.baseline_music_note_24)
             .setContentTitle(song.title)
             .setContentText(song.artist)
             .setLargeIcon(artwork.takeIf { artworkSongId == song.id }) // song thumbnail
             .setContentIntent(openAppIntent())                         // tap -> open the app
             .setDeleteIntent(serviceIntent(ACTION_STOP, 4))            // swiped away (when paused) -> stop
-            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)       // show controls on lock screen
+            .setVisibility(Notification.VISIBILITY_PUBLIC)             // show controls on lock screen
             .setOnlyAlertOnce(true)
             .setOngoing(isPlaying)
-            .addAction(R.drawable.baseline_skip_previous_24, "Previous", serviceIntent(ACTION_PREVIOUS, 0)) // 0
-            .addAction(playPause)                                                                        // 1
-            .addAction(R.drawable.baseline_skip_next_24, "Next", serviceIntent(ACTION_NEXT, 2))           // 2
-            .addAction(R.drawable.baseline_close_24, "Stop", serviceIntent(ACTION_STOP, 3))               // 3
+            .addAction(action(R.drawable.baseline_skip_previous_24, "Previous", serviceIntent(ACTION_PREVIOUS, 0))) // 0
+            .addAction(playPause)                                                                                 // 1
+            .addAction(action(R.drawable.baseline_skip_next_24, "Next", serviceIntent(ACTION_NEXT, 2)))           // 2
+            .addAction(action(R.drawable.baseline_close_24, "Stop", serviceIntent(ACTION_STOP, 3)))               // 3
             .setStyle(
-                MediaStyle()
+                Notification.MediaStyle()
                     .setMediaSession(session.sessionToken)
                     .setShowActionsInCompactView(0, 1, 2) // prev, play/pause, next when collapsed
             )
@@ -337,6 +361,7 @@ class MediaPlayerService : Service() {
     }
 
     override fun onDestroy() {
+        PlaybackPersistence.save(this) // last chance to remember the position
         scope.cancel()
         mediaPlayer?.release()
         mediaPlayer = null

@@ -45,7 +45,6 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.compose)   // collectAsStateWithLifecycle
     implementation(libs.androidx.lifecycle.viewmodel)          // ViewModel, viewModelScope
     implementation(libs.androidx.navigation.compose)
-    implementation(libs.androidx.media)                        // MediaSession + media notification
 
     // Compose
     implementation(platform(libs.androidx.compose.bom))

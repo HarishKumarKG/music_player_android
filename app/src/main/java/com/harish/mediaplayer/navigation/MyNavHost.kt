@@ -38,6 +38,8 @@ fun AppNavHost(
         drawerContent = {
             AppDrawer(
                 currentRoute = currentRoute,
+                // true while opening/open, so the profile slideshow only runs when visible
+                isOpen = drawerState.targetValue == DrawerValue.Open,
                 onDestinationClick = { screen ->
                     scope.launch { drawerState.close() }
                     if (screen.route != currentRoute) {

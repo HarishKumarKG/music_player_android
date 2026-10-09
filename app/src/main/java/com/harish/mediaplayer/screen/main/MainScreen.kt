@@ -102,7 +102,7 @@ fun MainScreenContent(
             next = { PlayerController.next(context) },
             previous = { PlayerController.previous(context) },
             seek = { positionMs -> PlayerController.seekTo(context, positionMs) },
-            toggleShuffle = { PlayerController.toggleShuffle() }
+            toggleShuffle = { PlayerController.toggleShuffle(context) }
         )
     )
 }

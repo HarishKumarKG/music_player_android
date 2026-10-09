@@ -62,6 +62,37 @@ object PlaybackStateHolder {
         }
     }
 
+    /** What gets saved to disk so the app can come back to the last song. */
+    internal fun snapshot(): SavedPlayback? {
+        val s = _state.value
+        if (s.currentSong == null) return null
+        return SavedPlayback(s.queue, originalQueue.ifEmpty { s.queue }, s.currentIndex, s.positionMs, s.shuffle)
+    }
+
+    /** App start: bring back the last queue, paused at the saved position. */
+    internal fun restore(saved: SavedPlayback) {
+        if (_state.value.currentSong != null) return // something is already playing, keep it
+        originalQueue = saved.originalQueue
+        val song = saved.queue.getOrNull(saved.currentIndex) ?: return
+        _state.value = PlaybackState(
+            queue = saved.queue,
+            currentIndex = saved.currentIndex,
+            isPlaying = false,
+            positionMs = saved.positionMs,
+            durationMs = song.durationMs,
+            shuffle = saved.shuffle
+        )
+    }
+
     /** Stop: forget the current song (mini player hides) but keep the shuffle preference. */
     internal fun clear() = update { PlaybackState(shuffle = it.shuffle) }
 }
+
+/** The part of the playback state that's worth keeping between app launches. */
+data class SavedPlayback(
+    val queue: List<Song>,
+    val originalQueue: List<Song>,
+    val currentIndex: Int,
+    val positionMs: Long,
+    val shuffle: Boolean
+)

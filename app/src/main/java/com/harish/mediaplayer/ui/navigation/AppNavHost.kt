@@ -5,6 +5,10 @@ import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import com.harish.mediaplayer.ui.player.SleepTimerSheetHost
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -29,6 +33,7 @@ fun AppNavHost(
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
     val openDrawer: () -> Unit = { scope.launch { drawerState.open() } }
+    var showSleepTimer by rememberSaveable { mutableStateOf(false) }
 
     ModalNavigationDrawer(
         drawerState = drawerState,
@@ -37,6 +42,10 @@ fun AppNavHost(
                 currentRoute = currentRoute,
                 // true while opening/open, so the profile slideshow only runs when visible
                 isOpen = drawerState.targetValue == DrawerValue.Open,
+                onSleepTimerClick = {
+                    scope.launch { drawerState.close() }
+                    showSleepTimer = true
+                },
                 onDestinationClick = { destination ->
                     scope.launch { drawerState.close() }
                     if (destination.route != currentRoute) {
@@ -61,5 +70,9 @@ fun AppNavHost(
                 ThemeScreen(onMenuClick = openDrawer)
             }
         }
+    }
+
+    if (showSleepTimer) {
+        SleepTimerSheetHost(onDismiss = { showSleepTimer = false })
     }
 }

@@ -7,8 +7,14 @@ data class PlaybackState(
     val isPlaying: Boolean = false,
     val positionMs: Long = 0L,
     val durationMs: Long = 0L,
-    val shuffle: Boolean = false
+    val shuffle: Boolean = false,
+    /** Wall-clock time (System.currentTimeMillis) when the sleep timer stops playback; null = off. */
+    val sleepTimerEndsAt: Long? = null,
+    /** Sleep timer set to "end of current song". */
+    val sleepAfterCurrentSong: Boolean = false
 ) {
+    val isSleepTimerOn: Boolean get() = sleepTimerEndsAt != null || sleepAfterCurrentSong
+
     val currentSong: Song? get() = queue.getOrNull(currentIndex)
     val songPath: String? get() = currentSong?.path
 }

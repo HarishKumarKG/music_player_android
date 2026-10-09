@@ -3,7 +3,10 @@ package com.harish.mediaplayer.playback
 import com.harish.mediaplayer.domain.model.PlaybackState
 import com.harish.mediaplayer.domain.model.SavedPlayback
 import com.harish.mediaplayer.domain.model.Song
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
@@ -14,6 +17,14 @@ import kotlinx.coroutines.flow.asStateFlow
 object PlaybackStateHolder {
     private val _state = MutableStateFlow(PlaybackState())
     val state: StateFlow<PlaybackState> = _state.asStateFlow()
+
+    // One-off "close the app" signal from the sleep timer (no replay: a late subscriber never closes)
+    private val _closeRequests = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val closeRequests: SharedFlow<Unit> = _closeRequests.asSharedFlow()
+
+    internal fun requestClose() {
+        _closeRequests.tryEmit(Unit)
+    }
 
     private var originalQueue: List<Song> = emptyList() // the list order the user saw
 

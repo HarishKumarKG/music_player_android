@@ -64,6 +64,7 @@ import com.harish.mediaplayer.ui.player.MiniPlayer
 import com.harish.mediaplayer.ui.player.NowPlayingScreen
 import com.harish.mediaplayer.ui.player.PlayerActions
 import com.harish.mediaplayer.ui.player.QueueSheet
+import com.harish.mediaplayer.ui.player.SleepTimerSheetHost
 import com.harish.mediaplayer.ui.theme.BrandBackground
 import com.harish.mediaplayer.ui.theme.LocalIsDarkTheme
 import com.harish.mediaplayer.ui.themepicker.ThemeViewModel
@@ -151,6 +152,7 @@ private fun HomeScreen(
     var openKey by rememberSaveable { mutableStateOf<String?>(null) } // opened album/playlist/folder
     var showNowPlaying by rememberSaveable { mutableStateOf(false) }
     var showQueue by rememberSaveable { mutableStateOf(false) }
+    var showSleepTimer by rememberSaveable { mutableStateOf(false) }
 
     // Dialog state
     var infoSong by remember { mutableStateOf<Song?>(null) }
@@ -316,6 +318,7 @@ private fun HomeScreen(
                     onSeek = actions.seek,
                     onShuffleClick = actions.toggleShuffle,
                     onQueueClick = { showQueue = true },
+                    onSleepTimerClick = { showSleepTimer = true },
                     onClose = { showNowPlaying = false }
                 )
             }
@@ -387,6 +390,10 @@ private fun HomeScreen(
     }
 
     // "Up next" list, opened from the mini player or the full-screen player
+    if (showSleepTimer) {
+        SleepTimerSheetHost(onDismiss = { showSleepTimer = false })
+    }
+
     if (showQueue) {
         QueueSheetHost(
             playbackState = playbackState,

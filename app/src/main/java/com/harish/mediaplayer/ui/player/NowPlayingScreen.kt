@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
@@ -67,6 +66,7 @@ fun NowPlayingScreen(
     onSeek: (Long) -> Unit,
     onShuffleClick: () -> Unit,
     onQueueClick: () -> Unit,
+    onSleepTimerClick: () -> Unit,
     onClose: () -> Unit
 ) {
     val duration = if (playback.durationMs > 0) playback.durationMs else song.durationMs
@@ -122,7 +122,25 @@ fun NowPlayingScreen(
                     textAlign = TextAlign.Center,
                     modifier = Modifier.weight(1f)
                 )
-                Spacer(modifier = Modifier.width(48.dp)) // balances the close button
+                // Sleep timer: red moon + countdown while it's running
+                val sleepStatus = sleepTimerStatus(playback)
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    IconButton(onClick = onSleepTimerClick) {
+                        Icon(
+                            painterResource(R.drawable.baseline_bedtime_24),
+                            contentDescription = sleepStatus ?: "Sleep timer",
+                            tint = if (sleepStatus != null) MaterialTheme.colorScheme.tertiary
+                                   else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    if (sleepStatus != null) {
+                        Text(
+                            sleepStatus.removePrefix("Stops in ").removePrefix("Stops "),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.tertiary
+                        )
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.weight(1f))

@@ -27,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.harish.mediaplayer.data.settings.ThemeRepository
 import com.harish.mediaplayer.domain.model.ThemeMode
+import com.harish.mediaplayer.playback.PlaybackStateHolder
 import com.harish.mediaplayer.ui.permission.PermissionGate
 import com.harish.mediaplayer.ui.splash.AnimatedSplash
 import com.harish.mediaplayer.ui.theme.MediaPlayerTheme
@@ -43,6 +44,10 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             val themeMode by themeRepository.themeMode.collectAsStateWithLifecycle()
+            // Sleep timer finished -> close the app (and remove it from Recents)
+            LaunchedEffect(Unit) {
+                PlaybackStateHolder.closeRequests.collect { finishAndRemoveTask() }
+            }
             val darkTheme = when (themeMode) {
                 ThemeMode.SYSTEM -> isSystemInDarkTheme()
                 ThemeMode.LIGHT -> false

@@ -58,6 +58,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.harish.mediaplayer.R
+import androidx.compose.material3.LocalContentColor
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.harish.mediaplayer.playback.PlaybackStateHolder
+import com.harish.mediaplayer.ui.player.sleepTimerStatus
 import com.harish.mediaplayer.ui.brand.BrandDeepSpace
 import com.harish.mediaplayer.ui.brand.BrandFrosted
 import com.harish.mediaplayer.ui.brand.BrandHoneydew
@@ -100,7 +104,12 @@ private val drawerDestinations = listOf(
 )
 
 @Composable
-fun AppDrawer(currentRoute: String?, isOpen: Boolean, onDestinationClick: (Destination) -> Unit) {
+fun AppDrawer(
+    currentRoute: String?,
+    isOpen: Boolean,
+    onDestinationClick: (Destination) -> Unit,
+    onSleepTimerClick: () -> Unit
+) {
     ModalDrawerSheet {
         ProfileHeader(isOpen = isOpen)
 
@@ -114,6 +123,28 @@ fun AppDrawer(currentRoute: String?, isOpen: Boolean, onDestinationClick: (Desti
                 modifier = Modifier.padding(horizontal = 12.dp)
             )
         }
+
+        // Not a screen: opens the sleep timer sheet, shows the countdown when it's running
+        val playback by PlaybackStateHolder.state.collectAsStateWithLifecycle()
+        val sleepStatus = sleepTimerStatus(playback)
+        NavigationDrawerItem(
+            label = { Text("Sleep timer") },
+            badge = {
+                sleepStatus?.let {
+                    Text(it.removePrefix("Stops in ").removePrefix("Stops "), color = MaterialTheme.colorScheme.tertiary)
+                }
+            },
+            icon = {
+                Icon(
+                    painterResource(R.drawable.baseline_bedtime_24),
+                    contentDescription = null,
+                    tint = if (sleepStatus != null) MaterialTheme.colorScheme.tertiary else LocalContentColor.current
+                )
+            },
+            selected = false,
+            onClick = onSleepTimerClick,
+            modifier = Modifier.padding(horizontal = 12.dp)
+        )
 
         Spacer(modifier = Modifier.weight(1f))
         HorizontalDivider(modifier = Modifier.padding(horizontal = 24.dp))

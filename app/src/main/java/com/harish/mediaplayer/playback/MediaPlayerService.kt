@@ -61,10 +61,18 @@ class MediaPlayerService : Service() {
         const val ACTION_SEEK = "com.harish.mediaplayer.SEEK"
         const val ACTION_STOP = "com.harish.mediaplayer.STOP"
         const val EXTRA_POSITION = "position_ms"
+        const val ACTION_SLEEP_TIMER = "com.harish.mediaplayer.SLEEP_TIMER"
+        const val EXTRA_SLEEP_MINUTES = "sleep_minutes"
+        private const val SLEEP_FADE_MS = 30_000L // fade the volume out over the last 30 seconds
 
         private const val CHANNEL_ID = "media_playback_channel"
         private const val NOTIFICATION_ID = 1
         private const val CUSTOM_ACTION_STOP = "stop"
+        private const val CUSTOM_ACTION_REWIND = "rewind_10"
+        private const val CUSTOM_ACTION_FORWARD = "forward_10"
+        private const val ACTION_REWIND = "com.harish.mediaplayer.REWIND"
+        private const val ACTION_FORWARD = "com.harish.mediaplayer.FORWARD"
+        private const val SKIP_MS = 10_000L // size of one rewind / forward jump
         private const val TAG = "MediaPlayerService"
         private const val SAVE_EVERY_TICKS = 10 // 10 x 500ms = save position every 5s while playing
     }
@@ -84,6 +92,22 @@ class MediaPlayerService : Service() {
     private lateinit var audioManager: AudioManager
     private var resumeAfterFocusGain = false   // paused by a phone call etc., not by the user
     private var consecutiveErrors = 0          // stop skipping if every song in the queue fails
+
+    // ---- sleep timer
+    private var sleepJob: Job? = null
+    private var stopAfterCurrentSong = false
+    private var volume = 1f                    // lowered during the sleep fade-out
+
+    /**
+     * Where a seek is going while MediaPlayer is still getting there. seekTo() is asynchronous:
+     * until it finishes, currentPosition still reports the OLD time, which made the notification's
+     * seek bar jump back. While this is set we report the target instead.
+     */
+    private var pendingSeekMs: Long? = null
+
+    /** Position to show everywhere (UI, notification, lock screen). */
+    private val shownPositionMs: Long
+        get() = pendingSeekMs ?: mediaPlayer?.currentPosition?.toLong() ?: PlaybackStateHolder.state.value.positionMs
 
     /** Phone call, alarm, another music app...: pause and (for short interruptions) resume after. */
     private val focusRequest by lazy {
@@ -135,8 +159,14 @@ class MediaPlayerService : Service() {
                 override fun onSkipToPrevious() = previous()
                 override fun onSeekTo(pos: Long) = seekTo(pos)
                 override fun onStop() = stopPlayback()
+                override fun onRewind() = skipBy(-SKIP_MS)       // headset / car "rewind"
+                override fun onFastForward() = skipBy(SKIP_MS)   // headset / car "fast forward"
                 override fun onCustomAction(action: String, extras: Bundle?) {
-                    if (action == CUSTOM_ACTION_STOP) stopPlayback()
+                    when (action) {
+                        CUSTOM_ACTION_REWIND -> skipBy(-SKIP_MS)
+                        CUSTOM_ACTION_FORWARD -> skipBy(SKIP_MS)
+                        CUSTOM_ACTION_STOP -> stopPlayback()
+                    }
                 }
             })
             setSessionActivity(openAppIntent())
@@ -152,6 +182,9 @@ class MediaPlayerService : Service() {
             ACTION_PREVIOUS -> previous()
             ACTION_SEEK -> seekTo(intent.getLongExtra(EXTRA_POSITION, 0L))
             ACTION_STOP -> stopPlayback()
+            ACTION_REWIND -> skipBy(-SKIP_MS)
+            ACTION_FORWARD -> skipBy(SKIP_MS)
+            ACTION_SLEEP_TIMER -> setSleepTimer(intent.getIntExtra(EXTRA_SLEEP_MINUTES, PlayerController.SLEEP_OFF))
         }
         return START_NOT_STICKY
     }
@@ -163,6 +196,7 @@ class MediaPlayerService : Service() {
     /** Start the song at the queue's current index (optionally from [startAtMs]). */
     private fun playCurrent(startAtMs: Long = 0L) {
         val song = currentSong ?: return
+        pendingSeekMs = null
         mediaPlayer?.release() // always release the old player (no leaks)
         mediaPlayer = null
 
@@ -181,8 +215,16 @@ class MediaPlayerService : Service() {
             skipBrokenSong()
             return
         }
-        if (startAtMs > 0) player.seekTo(startAtMs.toInt())
-        player.setOnCompletionListener { next() } // auto-play the next song in the queue
+        if (startAtMs > 0) player.seekTo(startAtMs, MediaPlayer.SEEK_CLOSEST)
+        player.setOnCompletionListener {
+            // "End of current song" sleep timer -> stop here; otherwise auto-play the next song
+            if (stopAfterCurrentSong) goToSleep() else next()
+        }
+        player.setVolume(volume, volume) // keep the fade going across a song change
+        player.setOnSeekCompleteListener {
+            pendingSeekMs = null
+            onStateChanged() // re-sync with the real position once the seek has landed
+        }
         player.setOnErrorListener { _, what, extra ->
             Log.e(TAG, "Playback error what=$what extra=$extra on ${song.path}")
             skipBrokenSong()
@@ -273,13 +315,73 @@ class MediaPlayerService : Service() {
             PlaybackPersistence.save(this)
             return
         }
-        player.seekTo(positionMs.toInt())
-        onStateChanged() // update UI + notification right away
+        pendingSeekMs = positionMs
+        // SEEK_CLOSEST = land exactly where the user dropped the bar (not the nearest key frame)
+        player.seekTo(positionMs, MediaPlayer.SEEK_CLOSEST)
+        onStateChanged() // notification/UI show the new spot immediately
+    }
+
+    /** Jump back / forward inside the song (the notification's ⏪ 10s / ⏩ 10s). */
+    private fun skipBy(deltaMs: Long) {
+        val duration = mediaPlayer?.duration?.toLong()?.takeIf { it > 0 } ?: currentSong?.durationMs ?: return
+        seekTo((shownPositionMs + deltaMs).coerceIn(0L, (duration - 1_000L).coerceAtLeast(0L)))
+    }
+
+    /**
+     * Start / change / cancel the sleep timer.
+     * The timer runs here in the service, so it works with the app closed and the screen off
+     * (the wake lock keeps the CPU awake while music plays).
+     */
+    private fun setSleepTimer(minutes: Int) {
+        sleepJob?.cancel()
+        sleepJob = null
+        stopAfterCurrentSong = false
+        setVolume(1f)
+        when {
+            minutes == PlayerController.SLEEP_END_OF_SONG -> {
+                stopAfterCurrentSong = true
+                PlaybackStateHolder.update { it.copy(sleepTimerEndsAt = null, sleepAfterCurrentSong = true) }
+            }
+            minutes > 0 -> {
+                val totalMs = minutes * 60_000L
+                PlaybackStateHolder.update {
+                    it.copy(sleepTimerEndsAt = System.currentTimeMillis() + totalMs, sleepAfterCurrentSong = false)
+                }
+                sleepJob = scope.launch {
+                    delay((totalMs - SLEEP_FADE_MS).coerceAtLeast(0L))
+                    // Gentle fade-out instead of an abrupt stop
+                    val steps = 30
+                    repeat(steps) { step ->
+                        setVolume(1f - (step + 1f) / steps)
+                        delay(SLEEP_FADE_MS / steps)
+                    }
+                    goToSleep()
+                }
+            }
+            else -> PlaybackStateHolder.update { it.copy(sleepTimerEndsAt = null, sleepAfterCurrentSong = false) }
+        }
+    }
+
+    private fun setVolume(value: Float) {
+        volume = value
+        mediaPlayer?.setVolume(value, value)
+    }
+
+    /** Timer finished: stop the music, remove the notification and close the app. */
+    private fun goToSleep() {
+        sleepJob = null
+        stopAfterCurrentSong = false
+        stopPlayback()
+        PlaybackStateHolder.requestClose() // MainActivity closes itself if it's open
     }
 
     /** Stop button: end playback, remove the notification, hide the mini player. */
     private fun stopPlayback() {
         PlaybackPersistence.save(this) // keep the spot so the next launch can continue
+        sleepJob?.cancel()             // stopping by hand also cancels the sleep timer
+        sleepJob = null
+        stopAfterCurrentSong = false
+        volume = 1f
         stopProgressUpdates()
         mediaPlayer?.release()
         mediaPlayer = null
@@ -315,7 +417,7 @@ class MediaPlayerService : Service() {
         PlaybackStateHolder.update {
             it.copy(
                 isPlaying = isPlaying,
-                positionMs = player?.currentPosition?.toLong() ?: it.positionMs,
+                positionMs = shownPositionMs,
                 durationMs = player?.duration?.toLong() ?: it.durationMs
             )
         }
@@ -357,15 +459,22 @@ class MediaPlayerService : Service() {
                     SessionPlaybackState.ACTION_PLAY or SessionPlaybackState.ACTION_PAUSE or
                         SessionPlaybackState.ACTION_PLAY_PAUSE or SessionPlaybackState.ACTION_SKIP_TO_NEXT or
                         SessionPlaybackState.ACTION_SKIP_TO_PREVIOUS or SessionPlaybackState.ACTION_SEEK_TO or
+                        SessionPlaybackState.ACTION_REWIND or SessionPlaybackState.ACTION_FAST_FORWARD or
                         SessionPlaybackState.ACTION_STOP
                 )
                 // Android 13+ builds the media controls from the session, so Stop is added here too
+                // Android 13+ builds the media controls from the session and shows two extra
+                // buttons beside ⏮ ⏯ ⏭: big, easy ⏪ 10s / ⏩ 10s instead of the thin seek bar.
+                // (Stop: pause, then swipe the player away.)
                 .addCustomAction(
-                    SessionPlaybackState.CustomAction.Builder(CUSTOM_ACTION_STOP, "Stop", R.drawable.baseline_close_24).build()
+                    SessionPlaybackState.CustomAction.Builder(CUSTOM_ACTION_REWIND, "Rewind 10 seconds", R.drawable.baseline_replay_10_24).build()
+                )
+                .addCustomAction(
+                    SessionPlaybackState.CustomAction.Builder(CUSTOM_ACTION_FORWARD, "Forward 10 seconds", R.drawable.baseline_forward_10_24).build()
                 )
                 .setState(
                     if (isPlaying) SessionPlaybackState.STATE_PLAYING else SessionPlaybackState.STATE_PAUSED,
-                    player?.currentPosition?.toLong() ?: 0L,
+                    shownPositionMs,
                     if (isPlaying) 1f else 0f // lets the system move the seek bar by itself
                 )
                 .build()
@@ -434,14 +543,16 @@ class MediaPlayerService : Service() {
             .setVisibility(Notification.VISIBILITY_PUBLIC)             // show controls on lock screen
             .setOnlyAlertOnce(true)
             .setOngoing(isPlaying)
-            .addAction(action(R.drawable.baseline_skip_previous_24, "Previous", serviceIntent(ACTION_PREVIOUS, 0))) // 0
-            .addAction(playPause)                                                                                 // 1
-            .addAction(action(R.drawable.baseline_skip_next_24, "Next", serviceIntent(ACTION_NEXT, 2)))           // 2
-            .addAction(action(R.drawable.baseline_close_24, "Stop", serviceIntent(ACTION_STOP, 3)))               // 3
+            // Android 11-12 draw these buttons themselves: ⏮ ⏪10 ⏯ ⏩10 ⏭
+            .addAction(action(R.drawable.baseline_skip_previous_24, "Previous", serviceIntent(ACTION_PREVIOUS, 0)))   // 0
+            .addAction(action(R.drawable.baseline_replay_10_24, "Rewind 10 seconds", serviceIntent(ACTION_REWIND, 5)))  // 1
+            .addAction(playPause)                                                                                   // 2
+            .addAction(action(R.drawable.baseline_forward_10_24, "Forward 10 seconds", serviceIntent(ACTION_FORWARD, 6))) // 3
+            .addAction(action(R.drawable.baseline_skip_next_24, "Next", serviceIntent(ACTION_NEXT, 2)))             // 4
             .setStyle(
                 Notification.MediaStyle()
                     .setMediaSession(session.sessionToken)
-                    .setShowActionsInCompactView(0, 1, 2) // prev, play/pause, next when collapsed
+                    .setShowActionsInCompactView(0, 2, 4) // prev, play/pause, next when collapsed
             )
             .build()
     }

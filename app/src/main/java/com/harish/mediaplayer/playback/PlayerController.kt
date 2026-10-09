@@ -31,6 +31,19 @@ object PlayerController {
             .putExtra(MediaPlayerService.EXTRA_POSITION, positionMs)
     )
 
+    /**
+     * Sleep timer: stop (and close the app) after [minutes].
+     * Use [SLEEP_END_OF_SONG] to stop when the current song ends, or [SLEEP_OFF] to cancel.
+     */
+    fun setSleepTimer(context: Context, minutes: Int) = context.startService(
+        Intent(context, MediaPlayerService::class.java)
+            .setAction(MediaPlayerService.ACTION_SLEEP_TIMER)
+            .putExtra(MediaPlayerService.EXTRA_SLEEP_MINUTES, minutes)
+    )
+
+    const val SLEEP_OFF = 0
+    const val SLEEP_END_OF_SONG = -1
+
     /** Shuffle only reorders the queue; the current song keeps playing. */
     fun toggleShuffle(context: Context) {
         PlaybackStateHolder.toggleShuffle()

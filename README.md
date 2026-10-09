@@ -4,6 +4,7 @@ A modern, offline music player for Android built with **Kotlin** and **Jetpack C
 It plays the songs already on your phone, with favourites, playlists, albums, folder browsing,
 a rich notification, a sleep timer and polished light & dark themes.
 
+![CI](https://github.com/HarishKumarKG/music_player_android/actions/workflows/ci.yml/badge.svg)
 ![Platform](https://img.shields.io/badge/platform-Android-3DDC84?logo=android&logoColor=white)
 ![Kotlin](https://img.shields.io/badge/Kotlin-2.4.20-7F52FF?logo=kotlin&logoColor=white)
 ![Compose](https://img.shields.io/badge/Jetpack%20Compose-BOM%202026.09.00-4285F4?logo=jetpackcompose&logoColor=white)
@@ -143,6 +144,15 @@ Install on a connected device:
 Tests cover sorting, search, album/folder grouping, the browse tree and the play queue / shuffle logic.
 
 ---
+
+## Continuous integration
+
+GitHub Actions workflows in `.github/workflows/`:
+
+| Workflow | Runs when | What it does |
+|---|---|---|
+| `ci.yml` | Push or pull request to `main` | Runs unit tests, builds a debug APK (downloadable from the run's *Artifacts*) |
+| `release.yml` | A `v*` tag is pushed / a GitHub Release is published | Runs tests, builds a **signed** APK + AAB and attaches them to the release |
 
 ## Permissions
 

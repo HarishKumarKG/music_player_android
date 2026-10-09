@@ -9,3 +9,6 @@
 local.properties
 /.idea
 /.kotlin
+# Signing keys must never be committed
+*.jks
+*.keystore

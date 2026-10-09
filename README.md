@@ -126,8 +126,8 @@ UI ──PlayerController──▶ MediaPlayerService ──▶ PlaybackStateHol
 
 ### Build & run
 ```bash
-git clone https://github.com/HarishKumarKG/media_player_android.git
-cd media_player_android
+git clone https://github.com/HarishKumarKG/music_player_android.git
+cd music_player_android
 ./gradlew assembleDebug          # or press ▶ Run in Android Studio
 ```
 

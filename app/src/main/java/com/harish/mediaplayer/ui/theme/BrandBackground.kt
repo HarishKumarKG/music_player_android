@@ -13,7 +13,7 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 /**
  * Full-screen colourful backdrop.
  *  Light: Honeydew wash with Frosted Blue, a whisper of Strawberry Red and Steel Blue glows.
- *  Dark:  Deep Space Blue night with glowing Steel Blue, Strawberry Red and Frosted lights.
+ *  Dark:  near-black with soft graphite / gunmetal glows and just a hint of Strawberry Red.
  */
 @Composable
 fun BrandBackground(
@@ -40,15 +40,16 @@ internal fun DrawScope.drawLightBackdrop() {
 }
 
 internal fun DrawScope.drawDarkBackdrop() {
-    // Deep Space Blue night with glowing lights
+    // Mostly black...
     drawRect(
         Brush.verticalGradient(
-            listOf(Color(0xFF0B1626), Color(0xFF0E1B2E), Color(0xFF12213A))
+            listOf(Color(0xFF060606), Color(0xFF0A0A0B), Color(0xFF0D0D0F))
         )
     )
-    glow(Color(0xFF457B9D), Offset(size.width * 0.0f, size.height * 0.05f), size.width * 1.0f, 0.55f)  // Steel
-    glow(Color(0xFFE63946), Offset(size.width * 1.05f, size.height * 0.5f), size.width * 0.85f, 0.24f) // Strawberry
-    glow(Color(0xFFA8DADC), Offset(size.width * 0.2f, size.height * 1.0f), size.width * 0.8f, 0.18f)   // Frosted
+    // ...with soft graphite / gunmetal light, and only a whisper of red
+    glow(Color(0xFF3A3B40), Offset(size.width * 0.0f, size.height * 0.04f), size.width * 1.0f, 0.55f)  // gunmetal
+    glow(Color(0xFF2C2C30), Offset(size.width * 0.25f, size.height * 1.0f), size.width * 0.9f, 0.6f)   // graphite
+    glow(Color(0xFFE63946), Offset(size.width * 1.05f, size.height * 0.5f), size.width * 0.7f, 0.06f)  // red hint
 }
 
 /** Soft radial light that fades to transparent. */

@@ -24,6 +24,10 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.harish.mediaplayer.ui.brand.BrandGradient
+import com.harish.mediaplayer.ui.brand.DarkCharcoal
+import com.harish.mediaplayer.ui.brand.DarkGraphite
+import com.harish.mediaplayer.ui.brand.DarkInk
+import com.harish.mediaplayer.ui.theme.LocalIsDarkTheme
 import com.harish.mediaplayer.ui.brand.HarishLogo
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -49,7 +53,12 @@ fun AnimatedSplash(onFinished: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Brush.linearGradient(BrandGradient)),
+            // Light: brand blues. Dark: black -> graphite (the red equalizer is the only colour)
+            .background(
+                Brush.linearGradient(
+                    if (LocalIsDarkTheme.current) listOf(DarkInk, DarkCharcoal, DarkGraphite) else BrandGradient
+                )
+            ),
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {

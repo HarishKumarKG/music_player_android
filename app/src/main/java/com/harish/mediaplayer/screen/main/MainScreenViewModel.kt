@@ -2,6 +2,8 @@ package com.harish.mediaplayer.screen.main
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.harish.mediaplayer.library.LibraryData
+import com.harish.mediaplayer.library.LibraryRepository
 import com.harish.mediaplayer.screen.main.repository.SongRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -16,8 +18,20 @@ import javax.inject.Inject
 
 @HiltViewModel
 class MainScreenViewModel @Inject constructor(
-    private val songRepository: SongRepository
+    private val songRepository: SongRepository,
+    private val libraryRepository: LibraryRepository
 ) : ViewModel() {
+
+    /** Favourites + playlists (saved on disk by LibraryRepository). */
+    val library: StateFlow<LibraryData> = libraryRepository.data
+
+    fun toggleFavorite(songId: Long) = libraryRepository.toggleFavorite(songId)
+    fun createPlaylist(name: String, firstSongId: Long? = null) = libraryRepository.createPlaylist(name, firstSongId)
+    fun renamePlaylist(id: Long, name: String) = libraryRepository.renamePlaylist(id, name)
+    fun deletePlaylist(id: Long) = libraryRepository.deletePlaylist(id)
+    fun addToPlaylist(id: Long, songId: Long) = libraryRepository.addToPlaylist(id, songId)
+    fun removeFromPlaylist(id: Long, songId: Long) = libraryRepository.removeFromPlaylist(id, songId)
+    fun reorderPlaylist(id: Long, orderedIds: List<Long>) = libraryRepository.reorderPlaylist(id, orderedIds)
 
     private val _state = MutableStateFlow(MainScreenState.initValue)
     val state: StateFlow<MainScreenState> = _state.asStateFlow()

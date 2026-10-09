@@ -5,6 +5,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -16,7 +17,7 @@ import com.harish.mediaplayer.ui.theme.LocalIsDarkTheme
 @Composable
 fun GradientTitle(text: String, modifier: Modifier = Modifier, fontSize: TextUnit = 30.sp) {
     // Darker end of the gradient on light backgrounds, brighter end on dark ones (keeps contrast)
-    val colors = if (LocalIsDarkTheme.current) listOf(BrandHoneydew, BrandFrosted)
+    val colors = if (LocalIsDarkTheme.current) listOf(Color(0xFFFFFFFF), Color(0xFFA9AAB1))
                  else listOf(BrandDeepSpace, BrandSteel)
     Text(
         text = text,
@@ -27,7 +28,7 @@ fun GradientTitle(text: String, modifier: Modifier = Modifier, fontSize: TextUni
             fontWeight = FontWeight.Black,
             letterSpacing = 0.5.sp,
             shadow = Shadow(
-                color = BrandRed.copy(alpha = 0.30f), // subtle red glow
+                color = BrandRed.copy(alpha = if (LocalIsDarkTheme.current) 0.18f else 0.30f), // subtle red glow
                 offset = Offset(0f, 4f),
                 blurRadius = 10f
             )

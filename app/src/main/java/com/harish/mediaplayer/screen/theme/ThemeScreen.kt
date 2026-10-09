@@ -59,7 +59,9 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.harish.mediaplayer.R
 import com.harish.mediaplayer.settings.ThemeMode
+import com.harish.mediaplayer.ui.brand.themedBrandGradient
 import com.harish.mediaplayer.ui.brand.BrandGradient
+import com.harish.mediaplayer.ui.brand.DarkBrandGradient
 import com.harish.mediaplayer.ui.brand.GradientTitle
 import com.harish.mediaplayer.ui.theme.BrandBackground
 import com.harish.mediaplayer.ui.theme.LocalIsDarkTheme
@@ -146,7 +148,7 @@ fun ThemeScreen(
                             modifier = Modifier
                                 .size(44.dp)
                                 .clip(CircleShape)
-                                .background(Brush.linearGradient(BrandGradient)),
+                                .background(Brush.linearGradient(themedBrandGradient())),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
@@ -213,7 +215,7 @@ private fun ThemePreviewCard(
                 .aspectRatio(0.55f) // phone shape
                 .border(
                     width = if (selected) 3.dp else 1.dp,
-                    brush = if (selected) Brush.linearGradient(BrandGradient)
+                    brush = if (selected) Brush.linearGradient(themedBrandGradient())
                             else SolidColor(MaterialTheme.colorScheme.outlineVariant),
                     shape = shape
                 )
@@ -244,7 +246,7 @@ private fun ThemePreviewCard(
                         .padding(6.dp)
                         .size(24.dp)
                         .clip(CircleShape)
-                        .background(Brush.linearGradient(BrandGradient)),
+                        .background(Brush.linearGradient(themedBrandGradient())),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
@@ -275,13 +277,13 @@ private fun DrawScope.drawMiniPhone(dark: Boolean) {
     val h = size.height
     val line = if (dark) Color.White.copy(alpha = 0.22f) else Color(0xFF1D3557).copy(alpha = 0.16f)
     val thumb = if (dark) Color.White.copy(alpha = 0.14f) else Color(0xFF1D3557).copy(alpha = 0.10f)
-    val player = if (dark) Color(0xFF2C5374) else Color(0xFFA8DADC)
+    val player = if (dark) Color(0xFF2C2C30) else Color(0xFFA8DADC)
     val accent = Color(0xFFE63946) // Strawberry Red play button in both
     val r = CornerRadius(w * 0.03f)
 
     // Header: gradient logo dot + title line
     drawCircle(
-        brush = Brush.linearGradient(BrandGradient),
+        brush = Brush.linearGradient(if (dark) DarkBrandGradient else BrandGradient),
         radius = w * 0.07f,
         center = Offset(w * 0.15f, h * 0.08f)
     )

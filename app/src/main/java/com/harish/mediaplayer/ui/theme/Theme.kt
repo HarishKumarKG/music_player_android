@@ -41,32 +41,36 @@ private val BrandLightColors = lightColorScheme(
     surfaceContainerHighest = Color(0xFFD3E7E0)
 )
 
+/**
+ * Dark: ~70% blacks, ~25% graphite/gunmetal greys, ~5% Strawberry Red.
+ * Red lives only in `tertiary` (hearts, play buttons, current song, progress) so it stays an accent.
+ */
 private val BrandDarkColors = darkColorScheme(
-    primary = Color(0xFFA8DADC),            // Frosted Blue
-    onPrimary = Color(0xFF1D3557),
-    primaryContainer = Color(0xFF2C5374),   // between Steel and Deep Space (mini player)
-    onPrimaryContainer = Color(0xFFF1FAEE),
-    secondary = Color(0xFF8FB8CF),
-    onSecondary = Color(0xFF10223A),
-    secondaryContainer = Color(0xFF2A4A66),
-    onSecondaryContainer = Color(0xFFDDEEF2),
-    tertiary = Color(0xFFE63946),           // Strawberry Red
+    primary = Color(0xFFE2E2E6),            // soft silver (tabs, section headers, radio buttons)
+    onPrimary = Color(0xFF1C1C1E),
+    primaryContainer = Color(0xFF2C2C30),   // graphite (mini player)
+    onPrimaryContainer = Color(0xFFF1F1F1),
+    secondary = Color(0xFFB9BAC0),
+    onSecondary = Color(0xFF1C1C1E),
+    secondaryContainer = Color(0xFF2A2A2E),
+    onSecondaryContainer = Color(0xFFE8E8EC),
+    tertiary = Color(0xFFE63946),           // Strawberry Red — the only red, used sparingly
     onTertiary = Color.White,
-    tertiaryContainer = Color(0xFF7A1820),
+    tertiaryContainer = Color(0xFF3A1416),
     onTertiaryContainer = Color(0xFFFFD9DC),
-    background = Color(0xFF0E1A2B),         // deeper than Deep Space Blue
-    onBackground = Color(0xFFF1FAEE),
-    surface = Color(0xFF0E1A2B),
-    onSurface = Color(0xFFF1FAEE),
-    surfaceVariant = Color(0xFF22344B),
-    onSurfaceVariant = Color(0xFFB5CBD3),
-    outline = Color(0xFF7F97A8),
-    outlineVariant = Color(0xFF2E4560),
-    surfaceContainerLowest = Color(0xFF09121F),
-    surfaceContainerLow = Color(0xFF132238),
-    surfaceContainer = Color(0xFF172840),
-    surfaceContainerHigh = Color(0xFF1D3557), // Deep Space Blue (dialogs, menus)
-    surfaceContainerHighest = Color(0xFF25406A)
+    background = Color(0xFF0B0B0C),         // almost black
+    onBackground = Color(0xFFF1F1F1),
+    surface = Color(0xFF0B0B0C),
+    onSurface = Color(0xFFF1F1F1),
+    surfaceVariant = Color(0xFF1E1E21),
+    onSurfaceVariant = Color(0xFFB3B4BA),
+    outline = Color(0xFF7C7D84),
+    outlineVariant = Color(0xFF2A2A2E),
+    surfaceContainerLowest = Color(0xFF050505),
+    surfaceContainerLow = Color(0xFF121214),  // drawer, bottom sheets
+    surfaceContainer = Color(0xFF17171A),
+    surfaceContainerHigh = Color(0xFF1C1C1F),  // dialogs, dropdown menus
+    surfaceContainerHighest = Color(0xFF242428)
 )
 
 /** Lets any composable ask "are we in dark mode?" (the app may differ from the phone setting). */

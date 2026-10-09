@@ -41,8 +41,6 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.animation.AnimatedContent
@@ -62,8 +60,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.graphicsLayer
 import kotlinx.coroutines.delay
 import com.harish.mediaplayer.ui.brand.BrandDeepSpace
+import com.harish.mediaplayer.ui.brand.DarkCharcoal
+import com.harish.mediaplayer.ui.brand.DarkGraphite
+import com.harish.mediaplayer.ui.brand.DarkGunmetal
 import com.harish.mediaplayer.ui.brand.BrandFrosted
-import com.harish.mediaplayer.ui.brand.BrandGradient
+import com.harish.mediaplayer.ui.brand.themedBrandGradient
 import com.harish.mediaplayer.ui.brand.BrandHoneydew
 import com.harish.mediaplayer.ui.brand.BrandRed
 import com.harish.mediaplayer.ui.brand.BrandSteel
@@ -129,26 +130,20 @@ fun AppDrawer(currentRoute: String?, isOpen: Boolean, onDestinationClick: (Scree
  * Profile card that follows the theme:
  *  Light: Frosted Blue -> Honeydew card with Deep Space text.
  *  Dark:  Deep Space -> Steel Blue card with Honeydew text.
- * Animations: a diagonal light "shine" sweeps across the card every few seconds,
- * and a Strawberry/Frosted/Steel ring keeps rotating around the photo.
+ * Animation: a gradient ring keeps rotating around the photo (and the photos change, see below).
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ProfileHeader(isOpen: Boolean) {
     val dark = LocalIsDarkTheme.current
-    val cardColors = if (dark) listOf(BrandDeepSpace, BrandSteel) else listOf(BrandFrosted, BrandHoneydew)
-    val textColor = if (dark) BrandHoneydew else BrandDeepSpace
+    val cardColors = if (dark) listOf(DarkCharcoal, DarkGraphite) else listOf(BrandFrosted, BrandHoneydew)
+    val textColor = if (dark) Color(0xFFF1F1F1) else BrandDeepSpace
     val chipBackground = if (dark) Color.White.copy(alpha = 0.15f) else BrandDeepSpace.copy(alpha = 0.08f)
-    val shineColor = Color.White.copy(alpha = if (dark) 0.28f else 0.65f)
+    // Rotating ring: silver/graphite with one red streak in dark, the full palette in light
+    val ringColors = if (dark) listOf(Color.White, DarkGunmetal, Color(0xFF8E8F96), DarkGunmetal, BrandRed, Color.White)
+                     else listOf(BrandRed, BrandFrosted, BrandSteel, BrandHoneydew, BrandRed)
 
     val infinite = rememberInfiniteTransition(label = "profile")
-    // -0.6 .. 1.6: the band is only over the card for about half the cycle, the rest is a pause
-    val shine by infinite.animateFloat(
-        initialValue = -0.6f,
-        targetValue = 1.6f,
-        animationSpec = infiniteRepeatable(tween(3200, easing = LinearEasing)),
-        label = "shine"
-    )
     val ringAngle by infinite.animateFloat(
         initialValue = 0f,
         targetValue = 360f,
@@ -162,18 +157,6 @@ private fun ProfileHeader(isOpen: Boolean) {
             .padding(12.dp)
             .clip(RoundedCornerShape(28.dp))
             .background(Brush.linearGradient(cardColors))
-            // Draw the card's content first, then a soft diagonal light band on top of it
-            .drawWithContent {
-                drawContent()
-                val x = size.width * shine
-                drawRect(
-                    brush = Brush.linearGradient(
-                        colors = listOf(Color.Transparent, shineColor, Color.Transparent),
-                        start = Offset(x - size.width * 0.25f, 0f),
-                        end = Offset(x + size.width * 0.25f, size.height)
-                    )
-                )
-            }
             .padding(vertical = 24.dp, horizontal = 20.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -185,9 +168,7 @@ private fun ProfileHeader(isOpen: Boolean) {
                     .drawBehind {
                         rotate(ringAngle) {
                             drawCircle(
-                                brush = Brush.sweepGradient(
-                                    listOf(BrandRed, BrandFrosted, BrandSteel, BrandHoneydew, BrandRed)
-                                ),
+                                brush = Brush.sweepGradient(ringColors),
                                 radius = size.minDimension / 2 - 2.dp.toPx(),
                                 style = Stroke(width = 4.dp.toPx())
                             )
@@ -212,7 +193,7 @@ private fun ProfileHeader(isOpen: Boolean) {
                     .background(Color.White)
                     .padding(2.dp)
                     .clip(CircleShape)
-                    .background(Brush.linearGradient(BrandGradient))
+                    .background(Brush.linearGradient(themedBrandGradient()))
             ) {
                 HarishLogo(loop = false, modifier = Modifier.size(30.dp))
             }

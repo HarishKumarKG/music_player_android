@@ -8,6 +8,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.app.UiModeManager
 import android.graphics.Color as AndroidColor
 import android.provider.Settings
 import androidx.activity.ComponentActivity
@@ -59,6 +60,20 @@ class MainActivity : ComponentActivity() {
                 ThemeMode.DARK -> true
             }
             // Status/nav bar icons follow the APP theme (it may differ from the phone's setting)
+            // Android 12+: tell the system our own light/dark choice. This makes the
+            // *system* splash (shown before any of our code runs) use values-night colours
+            // next time when the app is set to Dark, even if the phone is in light mode.
+            LaunchedEffect(themeMode) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    getSystemService(UiModeManager::class.java)?.setApplicationNightMode(
+                        when (themeMode) {
+                            ThemeMode.SYSTEM -> UiModeManager.MODE_NIGHT_AUTO
+                            ThemeMode.LIGHT -> UiModeManager.MODE_NIGHT_NO
+                            ThemeMode.DARK -> UiModeManager.MODE_NIGHT_YES
+                        }
+                    )
+                }
+            }
             LaunchedEffect(darkTheme) {
                 enableEdgeToEdge(
                     statusBarStyle = SystemBarStyle.auto(

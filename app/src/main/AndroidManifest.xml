@@ -13,11 +13,14 @@
     <!-- Android 13+: needed to show the playback notification -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Keeps the CPU awake while music plays with the screen off (MediaPlayer.setWakeMode) -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
 
     <application
-        android:name=".MyApp"
+        android:name=".MediaPlayerApp"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
@@ -40,7 +43,7 @@
             </intent-filter>
         </activity>
         <!-- Only our own app (and our notification) can control playback -->
-        <service android:name=".util.MediaPlayerService"
+        <service android:name=".playback.MediaPlayerService"
             android:exported="false"
             android:foregroundServiceType="mediaPlayback" />
     </application>

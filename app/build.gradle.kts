@@ -39,6 +39,9 @@ android {
 }
 
 dependencies {
+    // One Compose BOM for every configuration (versions of all Compose libs come from it)
+    val composeBom = platform(libs.androidx.compose.bom)
+
     // AndroidX
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
@@ -47,7 +50,7 @@ dependencies {
     implementation(libs.androidx.navigation.compose)
 
     // Compose
-    implementation(platform(libs.androidx.compose.bom))
+    implementation(composeBom)
     implementation(libs.androidx.ui)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
@@ -62,7 +65,7 @@ dependencies {
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
-    androidTestImplementation(platform(libs.androidx.compose.bom))
+    androidTestImplementation(composeBom)
     androidTestImplementation(libs.androidx.ui.test.junit4)
     debugImplementation(libs.androidx.ui.test.manifest)
 }

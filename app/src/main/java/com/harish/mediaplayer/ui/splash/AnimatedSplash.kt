@@ -27,8 +27,8 @@ import com.harish.mediaplayer.ui.brand.BrandGradient
 import com.harish.mediaplayer.ui.brand.DarkCharcoal
 import com.harish.mediaplayer.ui.brand.DarkGraphite
 import com.harish.mediaplayer.ui.brand.DarkInk
-import com.harish.mediaplayer.ui.theme.LocalIsDarkTheme
 import com.harish.mediaplayer.ui.brand.HarishLogo
+import com.harish.mediaplayer.ui.theme.LocalIsDarkTheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 

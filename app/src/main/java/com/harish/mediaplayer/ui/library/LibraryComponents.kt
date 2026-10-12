@@ -134,4 +134,9 @@ fun SectionHeader(text: String, action: (@Composable () -> Unit)? = null) {
 }
 
 @Composable
-fun ListDivider() = HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+fun ListDivider() = HorizontalDivider(
+    // starts after the artwork and is very faint: rows read as one calm list, not a grid
+    modifier = Modifier.padding(start = 76.dp, end = 16.dp),
+    thickness = 0.5.dp,
+    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+)

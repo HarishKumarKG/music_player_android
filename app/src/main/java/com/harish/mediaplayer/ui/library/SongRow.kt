@@ -69,7 +69,7 @@ fun SongRow(
         modifier = modifier
             .fillMaxWidth()
             .clickable { handlers.onPlay(list, song) }
-            .padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
+            .padding(start = 16.dp, end = 4.dp, top = 10.dp, bottom = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(contentAlignment = Alignment.Center) {
@@ -94,14 +94,27 @@ fun SongRow(
         }
         Spacer(modifier = Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = song.title,
-                style = MaterialTheme.typography.bodyLarge,
-                color = if (isCurrent) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurface,
-                fontWeight = if (isCurrent) FontWeight.SemiBold else FontWeight.Normal,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = song.title,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = if (isCurrent) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurface,
+                    fontWeight = if (isCurrent) FontWeight.SemiBold else FontWeight.Normal,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
+                )
+                // Small heart only on favourites (toggle it from the ⋮ menu)
+                if (isFavorite) {
+                    Spacer(Modifier.width(6.dp))
+                    Icon(
+                        painterResource(R.drawable.baseline_favorite_24),
+                        contentDescription = "Favourite",
+                        tint = MaterialTheme.colorScheme.tertiary,
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
+            }
             Text(
                 text = subtitle,
                 style = MaterialTheme.typography.bodySmall,
@@ -110,9 +123,10 @@ fun SongRow(
                 overflow = TextOverflow.Ellipsis
             )
         }
-        FavoriteButton(isFavorite = isFavorite, onClick = { handlers.onToggleFavorite(song) })
         OverflowMenu(
             entries = listOf(
+                if (isFavorite) MenuEntry("Remove from favourites", R.drawable.baseline_favorite_24) { handlers.onToggleFavorite(song) }
+                else MenuEntry("Add to favourites", R.drawable.baseline_favorite_border_24) { handlers.onToggleFavorite(song) },
                 MenuEntry("Add to playlist", R.drawable.baseline_playlist_add_24) { handlers.onAddToPlaylist(song) }
             ) + extraMenu + MenuEntry("Song info", R.drawable.baseline_info_24) { handlers.onInfo(song) }
         )

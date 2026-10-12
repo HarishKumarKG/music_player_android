@@ -54,8 +54,7 @@ internal fun HomeHeader(
     onMenuClick: () -> Unit,
     isDark: Boolean,
     onToggleTheme: () -> Unit,
-    isRefreshing: Boolean,
-    onRefresh: (() -> Unit)?,  // null = hide refresh
+    onSearchClick: () -> Unit,
     sort: HeaderSort?          // null = hide sort
 ) {
     val titleIn = remember { Animatable(0f) }
@@ -106,8 +105,11 @@ internal fun HomeHeader(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
+        // Just 3 calm icons on the right: search, light/dark, sort (refresh = pull the list down)
+        IconButton(onClick = onSearchClick) {
+            Icon(painterResource(R.drawable.baseline_search_24), contentDescription = "Search songs")
+        }
         ThemeToggleButton(isDark = isDark, onToggle = onToggleTheme)
-        onRefresh?.let { RefreshButton(isRefreshing = isRefreshing, onClick = it) }
         sort?.let { SortMenu(it) }
     }
 }
@@ -139,20 +141,6 @@ private fun ThemeToggleButton(isDark: Boolean, onToggle: () -> Unit) {
     }
 }
 
-@Composable
-private fun RefreshButton(isRefreshing: Boolean, onClick: () -> Unit) {
-    // Swap the icon for a small spinner while MediaStore is being re-scanned
-    IconButton(onClick = onClick, enabled = !isRefreshing) {
-        if (isRefreshing) {
-            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-        } else {
-            Icon(
-                painter = painterResource(id = R.drawable.baseline_refresh_24),
-                contentDescription = "Refresh songs"
-            )
-        }
-    }
-}
 
 /** Sort choices shown in the header for whatever list is on screen. */
 class HeaderSort(val options: List<String>, val selected: Int, val onSelect: (Int) -> Unit)

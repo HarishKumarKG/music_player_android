@@ -17,9 +17,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Tab
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -54,6 +53,7 @@ import com.harish.mediaplayer.ui.library.CollectionScreen
 import com.harish.mediaplayer.ui.library.ConfirmDialog
 import com.harish.mediaplayer.ui.library.FoldersTab
 import com.harish.mediaplayer.ui.library.LibraryTab
+import com.harish.mediaplayer.ui.library.LibraryTabBar
 import com.harish.mediaplayer.ui.library.MenuEntry
 import com.harish.mediaplayer.ui.library.NameDialog
 import com.harish.mediaplayer.ui.library.PlaylistsTab
@@ -240,7 +240,6 @@ private fun HomeScreen(
                     )
                     else -> null
                 }
-                val showRefresh = !(selectedTab == LibraryTab.PLAYLISTS && (openedNow == null || openedNow is SongCollection.CustomPlaylist))
 
                 val query = searchQuery
                 if (query != null) {
@@ -251,34 +250,29 @@ private fun HomeScreen(
                         onMenuClick = onMenuClick,
                         isDark = isDark,
                         onToggleTheme = onToggleTheme,
-                        isRefreshing = state.isRefreshing,
-                        onRefresh = onRefresh.takeIf { showRefresh },
+                        onSearchClick = { searchQuery = "" },
                         sort = headerSort
                     )
 
-                    SearchEntry(onClick = { searchQuery = "" })
-
-                    PrimaryTabRow(
-                        selectedTabIndex = selectedTab.ordinal,
-                        containerColor = Color.Transparent,
-                        contentColor = MaterialTheme.colorScheme.primary
-                    ) {
-                        LibraryTab.entries.forEach { tab ->
-                            Tab(
-                                selected = tab == selectedTab,
-                                onClick = {
-                                    selectedTab = tab
-                                    openKey = null // switching tabs closes an opened playlist/folder
-                                },
-                                text = { Text(tab.label, maxLines = 1) },
-                                icon = { Icon(painterResource(tab.icon), contentDescription = null) },
-                                unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                    LibraryTabBar(
+                        selected = selectedTab,
+                        onSelect = { tab ->
+                            selectedTab = tab
+                            openKey = null // switching tabs closes an opened playlist/folder
                         }
-                    }
+                    )
                 }
 
-                Box(
+                // Pull the list down to look for new songs (replaces the old refresh button).
+                // The spinner only shows for YOUR pull, not for the quiet refresh at app start.
+                var userPulled by remember { mutableStateOf(false) }
+                LaunchedEffect(state.isRefreshing) { if (!state.isRefreshing) userPulled = false }
+                PullToRefreshBox(
+                    isRefreshing = userPulled,
+                    onRefresh = {
+                        userPulled = true
+                        onRefresh()
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f)
@@ -470,7 +464,7 @@ private fun OpenedCollection(
             CollectionScreen(
                 title = "Favourites", songs = list, handlers = handlers, onBack = onClose,
                 onPlayAll = { playAll(list) }, onShuffleAll = { shuffleAll(list) }, contentPadding = contentPadding,
-                emptyText = "Tap the heart on any song to add it here"
+                emptyText = "Use ⋮ → Add to favourites on any song to add it here"
             )
         }
         is SongCollection.Album -> {

@@ -18,17 +18,17 @@ a rich notification, a sleep timer and polished light & dark themes.
 ### Library
 - **Search** – live results as you type, across title, artist, album and file name
   (case- and accent-insensitive, words in any order)
-- **Four tabs:** All songs · Playlists · Folders · Browse
+- **Four tabs** as slim pills: Songs · Playlists · Folders · Browse; search sits in the header
 - **Shuffle play** – one tap at the top of the Songs tab plays everything in random order (also on every album, folder and playlist)
 - **Now-playing bars** – a little animated equalizer marks the song that's playing, in the list and the mini player
 - **Songs** – every song on the device with album art, sorted by *date modified* or *name (A–Z / Z–A)*
-- **Favourites** – tap the ♥ on any song
+- **Favourites** – ⋮ → *Add to favourites* on any song (favourites show a small ♥)
 - **Playlists** – create, rename, delete, add/remove songs and **drag to reorder**
 - **Albums** – grouped automatically, with artwork
 - **Folders** – every folder that contains music, sortable by name, song count or last update
 - **Browse** – file-manager style navigation through internal storage and SD card, with breadcrumbs
 - **Fast start-up** – the song list is cached and shown instantly, then refreshed in the background
-- Pull new downloads in any time with the **refresh** button
+- Pull new downloads in any time: **pull the list down** to refresh
 
 ### Playback
 - **Play queue** that follows the list you played from (sort order or **shuffle**)

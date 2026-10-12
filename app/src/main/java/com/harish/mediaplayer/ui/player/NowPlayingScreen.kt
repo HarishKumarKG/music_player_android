@@ -129,7 +129,7 @@ fun NowPlayingScreen(
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     IconButton(onClick = onSleepTimerClick) {
                         Icon(
-                            painterResource(R.drawable.baseline_bedtime_24),
+                            painterResource(R.drawable.baseline_sleep_timer_24),
                             contentDescription = sleepStatus ?: "Sleep timer",
                             tint = if (sleepStatus != null) MaterialTheme.colorScheme.tertiary
                                    else MaterialTheme.colorScheme.onSurfaceVariant

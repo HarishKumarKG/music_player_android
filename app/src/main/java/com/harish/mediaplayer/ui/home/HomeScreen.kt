@@ -111,7 +111,8 @@ fun HomeRoute(
                 next = { PlayerController.next(context) },
                 previous = { PlayerController.previous(context) },
                 seek = { positionMs -> PlayerController.seekTo(context, positionMs) },
-                toggleShuffle = { PlayerController.toggleShuffle(context) }
+                toggleShuffle = { PlayerController.toggleShuffle(context) },
+                shufflePlay = { list -> PlayerController.shufflePlay(context, list) }
             )
         },
         libraryActions = remember(viewModel) {
@@ -299,13 +300,21 @@ private fun HomeScreen(
                             handlers = handlers,
                             libraryActions = libraryActions,
                             playAll = { list -> if (list.isNotEmpty()) actions.playFromList(list, 0) },
+                            shuffleAll = { list -> actions.shufflePlay(list) },
                             onRename = { renameTarget = it },
                             onDelete = { deleteTarget = it },
                             onClose = { openKey = null },
                             contentPadding = listPadding
                         )
                     } else when (selectedTab) {
-                        LibraryTab.SONGS -> SongsTab(sortedSongs, state.isLoading, handlers, listPadding)
+                        LibraryTab.SONGS -> SongsTab(
+                            songs = sortedSongs,
+                            isLoading = state.isLoading,
+                            handlers = handlers,
+                            onShufflePlay = { actions.shufflePlay(sortedSongs) },
+                            onPlayAll = { if (sortedSongs.isNotEmpty()) actions.playFromList(sortedSongs, 0) },
+                            contentPadding = listPadding
+                        )
                         LibraryTab.PLAYLISTS -> PlaylistsTab(
                             songs = songs,
                             library = library,
@@ -449,6 +458,7 @@ private fun OpenedCollection(
     handlers: SongListHandlers,
     libraryActions: LibraryActions,
     playAll: (List<Song>) -> Unit,
+    shuffleAll: (List<Song>) -> Unit,
     onRename: (Playlist) -> Unit,
     onDelete: (Playlist) -> Unit,
     onClose: () -> Unit,
@@ -459,7 +469,7 @@ private fun OpenedCollection(
             val list = sortedSongs.filter { it.id in library.favorites }
             CollectionScreen(
                 title = "Favourites", songs = list, handlers = handlers, onBack = onClose,
-                onPlayAll = { playAll(list) }, contentPadding = contentPadding,
+                onPlayAll = { playAll(list) }, onShuffleAll = { shuffleAll(list) }, contentPadding = contentPadding,
                 emptyText = "Tap the heart on any song to add it here"
             )
         }
@@ -467,14 +477,14 @@ private fun OpenedCollection(
             val list = sortedSongs.filter { it.album == collection.name }
             CollectionScreen(
                 title = collection.name, songs = list, handlers = handlers, onBack = onClose,
-                onPlayAll = { playAll(list) }, contentPadding = contentPadding
+                onPlayAll = { playAll(list) }, onShuffleAll = { shuffleAll(list) }, contentPadding = contentPadding
             )
         }
         is SongCollection.Folder -> {
             val list = sortedSongs.filter { songParent(it) == collection.path }
             CollectionScreen(
                 title = collection.path.substringAfterLast('/'), songs = list, handlers = handlers, onBack = onClose,
-                onPlayAll = { playAll(list) }, contentPadding = contentPadding
+                onPlayAll = { playAll(list) }, onShuffleAll = { shuffleAll(list) }, contentPadding = contentPadding
             )
         }
         is SongCollection.CustomPlaylist -> {
@@ -488,7 +498,7 @@ private fun OpenedCollection(
             val list = playlist.songIds.mapNotNull { byId[it] }
             CollectionScreen(
                 title = playlist.name, songs = list, handlers = handlers, onBack = onClose,
-                onPlayAll = { playAll(list) }, contentPadding = contentPadding,
+                onPlayAll = { playAll(list) }, onShuffleAll = { shuffleAll(list) }, contentPadding = contentPadding,
                 headerMenu = listOf(
                     MenuEntry("Rename") { onRename(playlist) },
                     MenuEntry("Delete playlist") { onDelete(playlist) }

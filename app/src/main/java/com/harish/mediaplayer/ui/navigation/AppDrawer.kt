@@ -136,7 +136,7 @@ fun AppDrawer(
             },
             icon = {
                 Icon(
-                    painterResource(R.drawable.baseline_bedtime_24),
+                    painterResource(R.drawable.baseline_sleep_timer_24),
                     contentDescription = null,
                     tint = if (sleepStatus != null) MaterialTheme.colorScheme.tertiary else LocalContentColor.current
                 )

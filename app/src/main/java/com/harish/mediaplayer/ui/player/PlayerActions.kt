@@ -10,5 +10,6 @@ class PlayerActions(
     val next: () -> Unit,
     val previous: () -> Unit,
     val seek: (positionMs: Long) -> Unit,
-    val toggleShuffle: () -> Unit
+    val toggleShuffle: () -> Unit,
+    val shufflePlay: (songs: List<Song>) -> Unit
 )

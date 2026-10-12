@@ -19,6 +19,8 @@ a rich notification, a sleep timer and polished light & dark themes.
 - **Search** – live results as you type, across title, artist, album and file name
   (case- and accent-insensitive, words in any order)
 - **Four tabs:** All songs · Playlists · Folders · Browse
+- **Shuffle play** – one tap at the top of the Songs tab plays everything in random order (also on every album, folder and playlist)
+- **Now-playing bars** – a little animated equalizer marks the song that's playing, in the list and the mini player
 - **Songs** – every song on the device with album art, sorted by *date modified* or *name (A–Z / Z–A)*
 - **Favourites** – tap the ♥ on any song
 - **Playlists** – create, rename, delete, add/remove songs and **drag to reorder**

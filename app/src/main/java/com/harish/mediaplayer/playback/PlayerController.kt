@@ -14,6 +14,13 @@ object PlayerController {
         send(context, MediaPlayerService.ACTION_PLAY_CURRENT)
     }
 
+    /** Shuffle play: every song in [songs], random order (shuffle stays on for next/previous). */
+    fun shufflePlay(context: Context, songs: List<Song>) {
+        if (songs.isEmpty()) return
+        PlaybackStateHolder.setQueueShuffled(songs)
+        send(context, MediaPlayerService.ACTION_PLAY_CURRENT)
+    }
+
     /** Jump to a song inside the current queue (from the "Up next" sheet). */
     fun playQueueItem(context: Context, queueIndex: Int) {
         PlaybackStateHolder.setIndex(queueIndex)

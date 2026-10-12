@@ -46,6 +46,12 @@ object PlaybackStateHolder {
         }
     }
 
+    /** "Shuffle play": the whole list in random order, shuffle switched on, start at the first. */
+    internal fun setQueueShuffled(songs: List<Song>) {
+        originalQueue = songs
+        update { it.copy(shuffle = true, queue = songs.shuffled(), currentIndex = 0) }
+    }
+
     internal fun setIndex(index: Int) = update { it.copy(currentIndex = index) }
 
     internal fun toggleShuffle() = update { s ->

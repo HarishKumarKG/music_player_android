@@ -61,4 +61,21 @@ class PlaybackStateHolderTest {
         assertEquals(42_000L, state.positionMs)
         assertFalse(state.isPlaying)
     }
+
+    @Test
+    fun `shuffle play uses every song once, turns shuffle on, and off goes back to list order`() {
+        PlaybackStateHolder.setQueueShuffled(list)
+        val shuffled = PlaybackStateHolder.state.value
+        assertTrue(shuffled.shuffle)
+        assertEquals(0, shuffled.currentIndex)
+        assertEquals(list.map { it.id }.toSet(), shuffled.queue.map { it.id }.toSet())
+        assertEquals(list.size, shuffled.queue.size)
+
+        val playing = shuffled.currentSong
+        PlaybackStateHolder.toggleShuffle()
+        val sorted = PlaybackStateHolder.state.value
+        assertFalse(sorted.shuffle)
+        assertEquals(list, sorted.queue)
+        assertEquals(playing?.id, sorted.currentSong?.id) // same song keeps playing
+    }
 }

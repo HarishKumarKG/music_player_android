@@ -13,8 +13,10 @@ import android.content.Context
 import android.content.IntentFilter
 import android.graphics.Bitmap
 import android.media.AudioAttributes
+import android.media.AudioDeviceInfo
 import android.media.AudioFocusRequest
 import android.media.AudioManager
+import android.os.Build
 import android.os.PowerManager
 import androidx.core.content.ContextCompat
 import android.graphics.drawable.Icon
@@ -117,10 +119,19 @@ class MediaPlayerService : Service() {
                 when (change) {
                     AudioManager.AUDIOFOCUS_LOSS -> { resumeAfterFocusGain = false; pause() }  // another app took over
                     AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {                                // call / voice note
-                        if (isPlaying) { resumeAfterFocusGain = true; pause() }
+                        if (isPlaying) {
+                            resumeAfterFocusGain = true
+                            headphonesWhenPaused = hasHeadphones()
+                            pause()
+                        }
                     }
                     AudioManager.AUDIOFOCUS_GAIN -> {
-                        if (resumeAfterFocusGain) { resumeAfterFocusGain = false; resumeOrPlay() }
+                        // Headphones were pulled out during the call: stay paused instead of
+                        // suddenly playing out loud on the speaker
+                        val headphonesRemoved = headphonesWhenPaused && !hasHeadphones()
+                        if (resumeAfterFocusGain && !headphonesRemoved) resumeOrPlay()
+                        resumeAfterFocusGain = false
+                        headphonesWhenPaused = false
                     }
                     // AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK: Android lowers our volume automatically (8.0+)
                 }
@@ -133,11 +144,35 @@ class MediaPlayerService : Service() {
         .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
         .build()
 
-    /** Headphones unplugged / Bluetooth disconnected -> pause (don't blast the speaker). */
+    /** True if wired / Type-C / Bluetooth headphones were plugged in when a call paused us. */
+    private var headphonesWhenPaused = false
+
+    /**
+     * Headphones unplugged / Bluetooth disconnected -> pause (don't blast the speaker).
+     * Also cancels the "resume after the call" plan: if you unplug during a call, the song must
+     * NOT start on the speaker when you hang up.
+     */
     private val noisyReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
-            if (intent.action == AudioManager.ACTION_AUDIO_BECOMING_NOISY && isPlaying) pause()
+            if (intent.action != AudioManager.ACTION_AUDIO_BECOMING_NOISY) return
+            resumeAfterFocusGain = false
+            if (isPlaying) pause()
         }
+    }
+
+    /** Any headphones connected right now? (wired, Type-C / USB, Bluetooth, hearing aid) */
+    private fun hasHeadphones(): Boolean {
+        val headphoneTypes = buildSet {
+            add(AudioDeviceInfo.TYPE_WIRED_HEADSET)
+            add(AudioDeviceInfo.TYPE_WIRED_HEADPHONES)
+            add(AudioDeviceInfo.TYPE_USB_HEADSET)
+            add(AudioDeviceInfo.TYPE_USB_DEVICE)       // many Type-C earphones show up as this
+            add(AudioDeviceInfo.TYPE_BLUETOOTH_A2DP)
+            add(AudioDeviceInfo.TYPE_BLUETOOTH_SCO)
+            add(AudioDeviceInfo.TYPE_HEARING_AID)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) add(AudioDeviceInfo.TYPE_BLE_HEADSET)
+        }
+        return audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS).any { it.type in headphoneTypes }
     }
 
     override fun onBind(intent: Intent?): IBinder? = null

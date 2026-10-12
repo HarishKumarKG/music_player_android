@@ -82,7 +82,7 @@ private fun SleepTimerSheet(
                 modifier = Modifier.padding(horizontal = 24.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(painterResource(R.drawable.baseline_bedtime_24), contentDescription = null, tint = MaterialTheme.colorScheme.tertiary)
+                Icon(painterResource(R.drawable.baseline_sleep_timer_24), contentDescription = null, tint = MaterialTheme.colorScheme.tertiary)
                 Spacer(Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text("Sleep timer", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)

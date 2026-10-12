@@ -20,6 +20,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -73,6 +75,8 @@ fun SongsTab(
     songs: List<Song>,
     isLoading: Boolean,
     handlers: SongListHandlers,
+    onShufflePlay: () -> Unit,
+    onPlayAll: () -> Unit,
     contentPadding: PaddingValues
 ) {
     if (songs.isEmpty()) {
@@ -80,6 +84,9 @@ fun SongsTab(
         return
     }
     LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = contentPadding) {
+        item(key = "playButtons", contentType = "playButtons") {
+            PlayButtonsRow(count = songs.size, onShufflePlay = onShufflePlay, onPlayAll = onPlayAll)
+        }
         items(songs, key = { it.id }, contentType = { "song" }) { song ->
             SongRow(song = song, list = songs, handlers = handlers)
             ListDivider()
@@ -246,6 +253,40 @@ private fun Breadcrumb(dir: String?, onUp: () -> Unit) {
     }
 }
 
+/**
+ * "Shuffle play" (big red button) + "Play" + the song count, at the top of the Songs tab.
+ * Example: tap Shuffle play -> all 250 songs in random order, starting right away.
+ */
+@Composable
+private fun PlayButtonsRow(count: Int, onShufflePlay: () -> Unit, onPlayAll: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Button(
+            onClick = onShufflePlay,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.tertiary,
+                contentColor = MaterialTheme.colorScheme.onTertiary
+            )
+        ) {
+            Icon(painterResource(R.drawable.baseline_shuffle_24), contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(6.dp))
+            Text("Shuffle play", fontWeight = FontWeight.SemiBold)
+        }
+        Spacer(Modifier.width(8.dp))
+        FilledTonalButton(onClick = onPlayAll) {
+            Icon(painterResource(R.drawable.baseline_play_arrow_24), contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(4.dp))
+            Text("Play")
+        }
+        Spacer(Modifier.weight(1f))
+        Text(songCount(count), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
 @Composable
 fun CollectionScreen(
     title: String,
@@ -254,6 +295,7 @@ fun CollectionScreen(
     onBack: () -> Unit,
     onPlayAll: () -> Unit,
     contentPadding: PaddingValues,
+    onShuffleAll: (() -> Unit)? = null,
     headerMenu: List<MenuEntry> = emptyList(),
     extraSongMenu: (Song) -> List<MenuEntry> = { emptyList() },
     emptyText: String = "No songs here yet",
@@ -274,6 +316,15 @@ fun CollectionScreen(
             Column(modifier = Modifier.weight(1f)) {
                 Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(songCount(songs.size), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            if (songs.size > 1 && onShuffleAll != null) {
+                IconButton(onClick = onShuffleAll) {
+                    Icon(
+                        painterResource(R.drawable.baseline_shuffle_24),
+                        contentDescription = "Shuffle play",
+                        tint = MaterialTheme.colorScheme.tertiary
+                    )
+                }
             }
             if (songs.isNotEmpty()) {
                 FilledTonalButton(onClick = onPlayAll) {

@@ -32,6 +32,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.harish.mediaplayer.R
 import com.harish.mediaplayer.domain.model.Song
+import com.harish.mediaplayer.ui.common.PlayingBars
 import com.harish.mediaplayer.ui.common.SongThumbnail
 import kotlinx.coroutines.launch
 
@@ -82,10 +83,11 @@ fun SongRow(
                         .background(Color.Black.copy(alpha = 0.45f)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        painterResource(if (handlers.isPlaying) R.drawable.baseline_pause_24 else R.drawable.baseline_play_arrow_24),
-                        contentDescription = if (handlers.isPlaying) "Pause" else "Play",
-                        tint = Color.White
+                    // Bouncing bars while playing, still bars when paused
+                    PlayingBars(
+                        isPlaying = handlers.isPlaying,
+                        color = Color.White,
+                        modifier = Modifier.size(22.dp)
                     )
                 }
             }

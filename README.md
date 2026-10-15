@@ -24,6 +24,7 @@ a rich notification, a sleep timer and polished light & dark themes.
 - **Songs** – every song on the device with album art, sorted by *date modified* or *name (A–Z / Z–A)*
 - **Favourites** – ⋮ → *Add to favourites* on any song (favourites show a small ♥)
 - **Playlists** – create, rename, delete, add/remove songs and **drag to reorder**
+- **Rename file** – ⋮ → *Rename file* changes the real file name on the phone (extension kept; Android asks once for files made by other apps). Favourites and playlists keep the song
 - **Albums** – grouped automatically, with artwork
 - **Folders** – every folder that contains music, sortable by name, song count or last update
 - **Browse** – file-manager style navigation through internal storage and SD card, with breadcrumbs

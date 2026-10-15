@@ -42,11 +42,14 @@ import com.harish.mediaplayer.domain.model.LibraryData
 import com.harish.mediaplayer.domain.model.PlaybackState
 import com.harish.mediaplayer.domain.model.Playlist
 import com.harish.mediaplayer.domain.model.Song
+import com.harish.mediaplayer.domain.model.otherNamesInFolderOf
+import com.harish.mediaplayer.data.files.RenameResult
 import com.harish.mediaplayer.domain.model.SortOrder
 import com.harish.mediaplayer.domain.model.ThemeMode
 import com.harish.mediaplayer.domain.model.sortedByOrder
 import com.harish.mediaplayer.playback.PlaybackStateHolder
 import com.harish.mediaplayer.playback.PlayerController
+import com.harish.mediaplayer.ui.common.RenameFileDialog
 import com.harish.mediaplayer.ui.library.AddToPlaylistDialog
 import com.harish.mediaplayer.ui.library.BrowseTab
 import com.harish.mediaplayer.ui.library.CollectionScreen
@@ -126,6 +129,8 @@ fun HomeRoute(
                 reorderPlaylist = viewModel::reorderPlaylist
             )
         },
+        renameSong = viewModel::renameSong,
+        onSongRenamed = viewModel::onSongRenamed,
         onMessage = { Toast.makeText(context, it, Toast.LENGTH_SHORT).show() }
     )
 }
@@ -143,6 +148,8 @@ private fun HomeScreen(
     onToggleTheme: () -> Unit,
     actions: PlayerActions,
     libraryActions: LibraryActions,
+    renameSong: suspend (Song, String) -> RenameResult,
+    onSongRenamed: (songId: Long) -> Unit,
     onMessage: (String) -> Unit
 ) {
     val songs = state.songs
@@ -170,6 +177,7 @@ private fun HomeScreen(
     var showNewPlaylist by remember { mutableStateOf(false) }
     var renameTarget by remember { mutableStateOf<Playlist?>(null) }
     var deleteTarget by remember { mutableStateOf<Playlist?>(null) }
+    var renameSongTarget by remember { mutableStateOf<Song?>(null) }
 
     // If playback is stopped (e.g. from the notification), close the full-screen player
     LaunchedEffect(currentSong == null) { if (currentSong == null) showNowPlaying = false }
@@ -188,6 +196,7 @@ private fun HomeScreen(
             },
             onToggleFavorite = { libraryActions.toggleFavorite(it.id) },
             onAddToPlaylist = { addToPlaylistSong = it },
+            onRename = { renameSongTarget = it },
             onInfo = { infoSong = it }
         )
     }
@@ -353,6 +362,21 @@ private fun HomeScreen(
     // ---------------------------------------------------------------- dialogs & sheets
 
     infoSong?.let { song -> SongInfoDialog(song = song, onDismiss = { infoSong = null }) }
+
+    renameSongTarget?.let { song ->
+        RenameFileDialog(
+            fileName = song.fileName,
+            otherNamesInFolder = remember(song, songs) { songs.otherNamesInFolderOf(song) },
+            rename = { newName -> renameSong(song, newName) },
+            onRenamed = { newName ->
+                renameSongTarget = null
+                onSongRenamed(song.id)
+                onMessage("Renamed to $newName")
+            },
+            onDismiss = { renameSongTarget = null },
+            note = "Songs with a title tag keep showing that title in the list; the Folders tab shows the new file name."
+        )
+    }
 
     addToPlaylistSong?.let { song ->
         AddToPlaylistDialog(

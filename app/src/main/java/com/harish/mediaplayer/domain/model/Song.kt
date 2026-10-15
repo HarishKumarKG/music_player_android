@@ -11,7 +11,16 @@ data class Song(
     val mimeType: String,
     val dateModifiedSec: Long, // seconds since epoch (MediaStore.DATE_MODIFIED)
     val path: String
-)
+) {
+    /** "Kannalane.mp3" — the real file name (the list shows [title], from the song's tags). */
+    val fileName: String get() = path.substringAfterLast('/')
+}
+
+/** File names of the other songs in the same folder as [song], so a rename can't clash with one. */
+fun List<Song>.otherNamesInFolderOf(song: Song): List<String> {
+    val folder = song.path.substringBeforeLast('/')
+    return filter { it.id != song.id && it.path.substringBeforeLast('/') == folder }.map { it.fileName }
+}
 
 /** Sort options shown in the top-right menu. */
 enum class SortOrder(val label: String) {

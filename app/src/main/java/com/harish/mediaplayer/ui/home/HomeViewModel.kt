@@ -1,11 +1,17 @@
 package com.harish.mediaplayer.ui.home
 
+import android.content.ContentUris
+import android.provider.MediaStore
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.harish.mediaplayer.data.files.FileRenamer
+import com.harish.mediaplayer.data.files.RenameResult
 import com.harish.mediaplayer.data.library.LibraryRepository
 import com.harish.mediaplayer.data.song.SongRepository
 import com.harish.mediaplayer.domain.library.SongSearchIndex
 import com.harish.mediaplayer.domain.model.LibraryData
+import com.harish.mediaplayer.domain.model.Song
+import com.harish.mediaplayer.playback.PlaybackStateHolder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -26,7 +32,8 @@ import kotlinx.coroutines.launch
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val songRepository: SongRepository,
-    private val libraryRepository: LibraryRepository
+    private val libraryRepository: LibraryRepository,
+    private val fileRenamer: FileRenamer
 ) : ViewModel() {
 
     /** Favourites + playlists (saved on disk by LibraryRepository). */
@@ -73,6 +80,23 @@ class HomeViewModel @Inject constructor(
     /** Refresh button: re-scan MediaStore and report what changed. */
     fun refresh() {
         viewModelScope.launch { loadSongs(userTriggered = true) }
+    }
+
+    /** Renames the song's file on the phone (the ⋮ menu's "Rename file"). */
+    suspend fun renameSong(song: Song, newFileName: String): RenameResult = fileRenamer.rename(
+        ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, song.id),
+        newFileName
+    )
+
+    /**
+     * After a rename: re-read the list so the new file name shows, and give the play queue the
+     * new path too (the id stays the same, so favourites and playlists keep the song).
+     */
+    fun onSongRenamed(songId: Long) {
+        viewModelScope.launch {
+            loadSongs(userTriggered = false)
+            _state.value.songs.firstOrNull { it.id == songId }?.let(PlaybackStateHolder::replaceSong)
+        }
     }
 
     private suspend fun loadSongs(userTriggered: Boolean) {

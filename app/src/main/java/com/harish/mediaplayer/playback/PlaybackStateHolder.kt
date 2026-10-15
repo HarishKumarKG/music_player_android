@@ -68,6 +68,13 @@ object PlaybackStateHolder {
         }
     }
 
+    /** A song's file was renamed: swap in its fresh details (new path) wherever it is queued. */
+    internal fun replaceSong(updated: Song) {
+        fun List<Song>.swapped() = map { if (it.id == updated.id) updated else it }
+        originalQueue = originalQueue.swapped()
+        update { it.copy(queue = it.queue.swapped()) }
+    }
+
     /** What gets saved to disk so the app can come back to the last song. */
     internal fun snapshot(): SavedPlayback? {
         val s = _state.value

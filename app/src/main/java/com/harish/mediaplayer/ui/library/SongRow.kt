@@ -45,6 +45,7 @@ class SongListHandlers(
     val onPlay: (list: List<Song>, song: Song) -> Unit,
     val onToggleFavorite: (Song) -> Unit,
     val onAddToPlaylist: (Song) -> Unit,
+    val onRename: (Song) -> Unit,
     val onInfo: (Song) -> Unit
 )
 
@@ -128,7 +129,9 @@ fun SongRow(
                 if (isFavorite) MenuEntry("Remove from favourites", R.drawable.baseline_favorite_24) { handlers.onToggleFavorite(song) }
                 else MenuEntry("Add to favourites", R.drawable.baseline_favorite_border_24) { handlers.onToggleFavorite(song) },
                 MenuEntry("Add to playlist", R.drawable.baseline_playlist_add_24) { handlers.onAddToPlaylist(song) }
-            ) + extraMenu + MenuEntry("Song info", R.drawable.baseline_info_24) { handlers.onInfo(song) }
+            ) + extraMenu +
+                MenuEntry("Rename file", R.drawable.baseline_edit_24) { handlers.onRename(song) } +
+                MenuEntry("Song info", R.drawable.baseline_info_24) { handlers.onInfo(song) }
         )
         dragHandle?.invoke()
     }

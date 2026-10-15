@@ -78,4 +78,17 @@ class PlaybackStateHolderTest {
         assertEquals(list, sorted.queue)
         assertEquals(playing?.id, sorted.currentSong?.id) // same song keeps playing
     }
+
+    @Test
+    fun `renamed song gets its new path in the queue and stays current`() {
+        PlaybackStateHolder.setQueue(list, startIndex = 2)
+        val renamed = list[2].copy(path = "/storage/emulated/0/Music/New name.mp3")
+
+        PlaybackStateHolder.replaceSong(renamed)
+
+        val state = PlaybackStateHolder.state.value
+        assertEquals(renamed, state.currentSong)
+        assertEquals(list.size, state.queue.size)
+        assertEquals(list[3], state.queue[3]) // others untouched
+    }
 }

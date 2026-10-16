@@ -3,7 +3,9 @@ package com.harish.mediaplayer.domain
 import com.harish.mediaplayer.domain.rename.NameCheck
 import com.harish.mediaplayer.domain.rename.baseNameOf
 import com.harish.mediaplayer.domain.rename.checkNewFileName
+import com.harish.mediaplayer.domain.rename.checkNewFolderName
 import com.harish.mediaplayer.domain.rename.extensionOf
+import com.harish.mediaplayer.domain.rename.namesInside
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -50,5 +52,17 @@ class NewFileNameTest {
 
     @Test fun `very long names are refused`() {
         assertTrue(check("x".repeat(300)) is NameCheck.Problem)
+    }
+
+    @Test fun `folder names keep dots and have no extension added`() {
+        assertEquals(NameCheck.Ok("Ooty 2024"), checkNewFolderName("Ooty 2024", "Trip", emptyList()))
+        assertEquals(NameCheck.Ok("Season 1.5"), checkNewFolderName("Season 1.5", "Trip", emptyList()))
+        assertEquals(NameCheck.Problem(""), checkNewFolderName("Trip", "Trip", emptyList()))
+        assertTrue(checkNewFolderName("Songs", "Trip", listOf("songs", "Trip")) is NameCheck.Problem)
+    }
+
+    @Test fun `names inside a folder come from the file paths`() {
+        val paths = listOf("/s/Movies/Ooty/a.mp4", "/s/Movies/Ooty/b.mp4", "/s/Movies/c.mp4", "/s/Music/d.mp3")
+        assertEquals(setOf("Ooty", "c.mp4"), namesInside("/s/Movies", paths))
     }
 }

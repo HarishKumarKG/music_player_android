@@ -25,6 +25,7 @@ a rich notification, a sleep timer and polished light & dark themes.
 - **Favourites** – ⋮ → *Add to favourites* on any song (favourites show a small ♥)
 - **Playlists** – create, rename, delete, add/remove songs and **drag to reorder**
 - **Rename file** – ⋮ → *Rename file* changes the real file name on the phone (extension kept; Android asks once for files made by other apps). Favourites and playlists keep the song
+- **Rename folders** – ⋮ on a folder in the Folders or Browse tab → *Rename folder*. Needs *All files access*, switched on once (the app opens that setting for you)
 - **Albums** – grouped automatically, with artwork
 - **Folders** – every folder that contains music, sortable by name, song count or last update
 - **Browse** – file-manager style navigation through internal storage and SD card, with breadcrumbs
@@ -165,6 +166,7 @@ GitHub Actions workflows in `.github/workflows/`:
 | `POST_NOTIFICATIONS` | Show the playback notification (Android 13+) |
 | `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_MEDIA_PLAYBACK` | Keep playing in the background |
 | `WAKE_LOCK` | Keep playing with the screen off |
+| `MANAGE_EXTERNAL_STORAGE` ("All files access") | Rename folders. Asked only when you first rename a folder |
 
 No internet permission – the app works fully offline and nothing leaves the device.
 

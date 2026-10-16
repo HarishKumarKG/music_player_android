@@ -5,6 +5,7 @@ import android.provider.MediaStore
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.harish.mediaplayer.data.files.FileRenamer
+import com.harish.mediaplayer.data.files.FolderRenamer
 import com.harish.mediaplayer.data.files.RenameResult
 import com.harish.mediaplayer.data.library.LibraryRepository
 import com.harish.mediaplayer.data.song.SongRepository
@@ -33,7 +34,8 @@ import kotlinx.coroutines.launch
 class HomeViewModel @Inject constructor(
     private val songRepository: SongRepository,
     private val libraryRepository: LibraryRepository,
-    private val fileRenamer: FileRenamer
+    private val fileRenamer: FileRenamer,
+    private val folderRenamer: FolderRenamer
 ) : ViewModel() {
 
     /** Favourites + playlists (saved on disk by LibraryRepository). */
@@ -88,14 +90,18 @@ class HomeViewModel @Inject constructor(
         newFileName
     )
 
+    /** Renames a folder on the phone (Folders / Browse tab ⋮ menu). */
+    suspend fun renameFolder(folderPath: String, newName: String): RenameResult =
+        folderRenamer.rename(folderPath, newName)
+
     /**
-     * After a rename: re-read the list so the new file name shows, and give the play queue the
-     * new path too (the id stays the same, so favourites and playlists keep the song).
+     * After a rename: re-read the list so the new names show, and give the play queue the new
+     * paths too (ids stay the same, so favourites and playlists keep their songs).
      */
-    fun onSongRenamed(songId: Long) {
+    fun onRenamed() {
         viewModelScope.launch {
             loadSongs(userTriggered = false)
-            _state.value.songs.firstOrNull { it.id == songId }?.let(PlaybackStateHolder::replaceSong)
+            PlaybackStateHolder.replaceSongs(_state.value.songs)
         }
     }
 

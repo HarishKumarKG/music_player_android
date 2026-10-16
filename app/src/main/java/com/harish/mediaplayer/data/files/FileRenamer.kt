@@ -2,6 +2,7 @@ package com.harish.mediaplayer.data.files
 
 import android.content.ContentValues
 import android.content.Context
+import android.content.Intent
 import android.content.IntentSender
 import android.net.Uri
 import android.provider.MediaStore
@@ -21,6 +22,12 @@ sealed interface RenameResult {
      * "Allow this app to modify this file?" popup; launch [request], then try again.
      */
     class NeedsPermission(val request: IntentSender) : RenameResult
+
+    /**
+     * Renaming a folder needs "All files access". [settings] opens that switch for this app;
+     * after the user turns it on, try again.
+     */
+    class NeedsAllFilesAccess(val settings: Intent) : RenameResult
 
     data class Failed(val message: String) : RenameResult
 }

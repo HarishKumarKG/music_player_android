@@ -84,7 +84,7 @@ class PlaybackStateHolderTest {
         PlaybackStateHolder.setQueue(list, startIndex = 2)
         val renamed = list[2].copy(path = "/storage/emulated/0/Music/New name.mp3")
 
-        PlaybackStateHolder.replaceSong(renamed)
+        PlaybackStateHolder.replaceSongs(listOf(renamed))
 
         val state = PlaybackStateHolder.state.value
         assertEquals(renamed, state.currentSong)

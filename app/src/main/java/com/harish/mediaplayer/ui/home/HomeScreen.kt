@@ -43,6 +43,7 @@ import com.harish.mediaplayer.domain.model.PlaybackState
 import com.harish.mediaplayer.domain.model.Playlist
 import com.harish.mediaplayer.domain.model.Song
 import com.harish.mediaplayer.domain.model.otherNamesInFolderOf
+import com.harish.mediaplayer.domain.rename.namesInside
 import com.harish.mediaplayer.data.files.RenameResult
 import com.harish.mediaplayer.domain.model.SortOrder
 import com.harish.mediaplayer.domain.model.ThemeMode
@@ -130,7 +131,8 @@ fun HomeRoute(
             )
         },
         renameSong = viewModel::renameSong,
-        onSongRenamed = viewModel::onSongRenamed,
+        renameFolder = viewModel::renameFolder,
+        onRenamed = viewModel::onRenamed,
         onMessage = { Toast.makeText(context, it, Toast.LENGTH_SHORT).show() }
     )
 }
@@ -149,7 +151,8 @@ private fun HomeScreen(
     actions: PlayerActions,
     libraryActions: LibraryActions,
     renameSong: suspend (Song, String) -> RenameResult,
-    onSongRenamed: (songId: Long) -> Unit,
+    renameFolder: suspend (folderPath: String, newName: String) -> RenameResult,
+    onRenamed: () -> Unit,
     onMessage: (String) -> Unit
 ) {
     val songs = state.songs
@@ -178,6 +181,7 @@ private fun HomeScreen(
     var renameTarget by remember { mutableStateOf<Playlist?>(null) }
     var deleteTarget by remember { mutableStateOf<Playlist?>(null) }
     var renameSongTarget by remember { mutableStateOf<Song?>(null) }
+    var renameFolderPath by remember { mutableStateOf<String?>(null) }
 
     // If playback is stopped (e.g. from the notification), close the full-screen player
     LaunchedEffect(currentSong == null) { if (currentSong == null) showNowPlaying = false }
@@ -327,8 +331,13 @@ private fun HomeScreen(
                             onDelete = { deleteTarget = it },
                             contentPadding = listPadding
                         )
-                        LibraryTab.FOLDERS -> FoldersTab(songs, folderSort, onOpen = { openKey = it.key }, contentPadding = listPadding)
-                        LibraryTab.BROWSE -> BrowseTab(songs, handlers, listPadding)
+                        LibraryTab.FOLDERS -> FoldersTab(
+                            songs, folderSort,
+                            onOpen = { openKey = it.key },
+                            onRenameFolder = { renameFolderPath = it },
+                            contentPadding = listPadding
+                        )
+                        LibraryTab.BROWSE -> BrowseTab(songs, handlers, onRenameFolder = { renameFolderPath = it }, contentPadding = listPadding)
                     }
                 }
             }
@@ -370,7 +379,7 @@ private fun HomeScreen(
             rename = { newName -> renameSong(song, newName) },
             onRenamed = { newName ->
                 renameSongTarget = null
-                onSongRenamed(song.id)
+                onRenamed()
                 onMessage("Renamed to $newName")
             },
             onDismiss = { renameSongTarget = null },
@@ -421,6 +430,21 @@ private fun HomeScreen(
                 renameTarget = null
             },
             onDismiss = { renameTarget = null }
+        )
+    }
+
+    renameFolderPath?.let { path ->
+        RenameFileDialog(
+            fileName = path.substringAfterLast('/'),
+            isFolder = true,
+            otherNamesInFolder = remember(path, songs) { namesInside(path.substringBeforeLast('/'), songs.map { it.path }) },
+            rename = { newName -> renameFolder(path, newName) },
+            onRenamed = { newName ->
+                renameFolderPath = null
+                onRenamed()
+                onMessage("Folder renamed to $newName")
+            },
+            onDismiss = { renameFolderPath = null }
         )
     }
 

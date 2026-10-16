@@ -1,6 +1,7 @@
 package com.harish.mediaplayer.ui.common
 
 import android.app.Activity
+import android.os.Environment
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -32,15 +33,19 @@ import com.harish.mediaplayer.data.files.RenameResult
 import com.harish.mediaplayer.domain.rename.NameCheck
 import com.harish.mediaplayer.domain.rename.baseNameOf
 import com.harish.mediaplayer.domain.rename.checkNewFileName
+import com.harish.mediaplayer.domain.rename.checkNewFolderName
 import com.harish.mediaplayer.domain.rename.extensionOf
 import kotlinx.coroutines.launch
 
 /**
- * "Rename" popup for a file.
+ * "Rename" popup for a file or a folder.
  *
- * The box starts with the current name selected (type to replace it), the extension is shown
- * greyed after it and always kept. If the file belongs to another app, Android's own
- * "Allow ... to modify this file?" popup appears once, and the rename continues after "Allow".
+ * The box starts with the current name selected (type to replace it). For a file the extension
+ * is shown greyed after it and always kept.
+ *  - File made by another app: Android's own "Allow ... to modify this file?" popup appears once,
+ *    and the rename continues after "Allow".
+ *  - Folder: the first time, Android's "All files access" screen opens; switch it on, come back,
+ *    and the rename continues by itself.
  */
 @Composable
 internal fun RenameFileDialog(
@@ -49,25 +54,41 @@ internal fun RenameFileDialog(
     rename: suspend (newFileName: String) -> RenameResult,
     onRenamed: (newFileName: String) -> Unit,
     onDismiss: () -> Unit,
+    isFolder: Boolean = false,
     note: String? = null
 ) {
     val scope = rememberCoroutineScope()
-    val extension = remember(fileName) { extensionOf(fileName) }
+    val extension = remember(fileName, isFolder) { if (isFolder) "" else extensionOf(fileName) }
     var input by remember(fileName) {
-        val base = baseNameOf(fileName)
+        val base = if (isFolder) fileName else baseNameOf(fileName)
         mutableStateOf(TextFieldValue(base, selection = TextRange(0, base.length)))
     }
     var working by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var waitingFor by remember { mutableStateOf<String?>(null) }   // name waiting for "Allow"
-    var allowedFor by remember { mutableStateOf<String?>(null) }   // "Allow" tapped: try again
-    val check = remember(input.text, otherNamesInFolder) { checkNewFileName(input.text, fileName, otherNamesInFolder) }
+    var allowedFor by remember { mutableStateOf<String?>(null) }   // "Allow" given: try again
+    val check = remember(input.text, otherNamesInFolder, isFolder) {
+        if (isFolder) checkNewFolderName(input.text, fileName, otherNamesInFolder)
+        else checkNewFileName(input.text, fileName, otherNamesInFolder)
+    }
 
-    val askPermission = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
+    // Android's "Allow this app to modify this file?" popup
+    val askFilePermission = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
         val name = waitingFor
         waitingFor = null
         if (result.resultCode == Activity.RESULT_OK && name != null) allowedFor = name
         else working = false // "Deny": just stay in the dialog
+    }
+    // Settings screen "All files access" (it never reports a result, so we check the switch itself)
+    val openAllFilesAccess = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        val name = waitingFor
+        waitingFor = null
+        if (Environment.isExternalStorageManager() && name != null) {
+            allowedFor = name
+        } else {
+            working = false
+            error = "Turn on \"All files access\" for this app to rename folders"
+        }
     }
 
     fun attempt(newName: String, afterPermission: Boolean) {
@@ -85,7 +106,15 @@ internal fun RenameFileDialog(
                         error = "Android didn't allow renaming this file"
                     } else {
                         waitingFor = newName
-                        askPermission.launch(IntentSenderRequest.Builder(result.request).build())
+                        askFilePermission.launch(IntentSenderRequest.Builder(result.request).build())
+                    }
+                is RenameResult.NeedsAllFilesAccess ->
+                    if (afterPermission) {
+                        working = false
+                        error = "Turn on \"All files access\" for this app to rename folders"
+                    } else {
+                        waitingFor = newName
+                        openAllFilesAccess.launch(result.settings)
                     }
                 is RenameResult.Failed -> {
                     working = false
@@ -108,7 +137,7 @@ internal fun RenameFileDialog(
 
     AlertDialog(
         onDismissRequest = { if (!working) onDismiss() },
-        title = { Text("Rename") },
+        title = { Text(if (isFolder) "Rename folder" else "Rename") },
         text = {
             Column {
                 OutlinedTextField(
@@ -117,7 +146,7 @@ internal fun RenameFileDialog(
                         input = it
                         error = null
                     },
-                    label = { Text("Name") },
+                    label = { Text(if (isFolder) "Folder name" else "Name") },
                     suffix = if (extension.isNotEmpty()) ({ Text(".$extension") }) else null,
                     singleLine = true,
                     enabled = !working,

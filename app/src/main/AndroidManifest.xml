@@ -10,6 +10,10 @@
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
 
+    <!-- Renaming folders: "All files access", switched on once by the user in Settings -->
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
+        tools:ignore="ScopedStorage" />
+
     <!-- Android 13+: needed to show the playback notification -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 

@@ -68,9 +68,13 @@ object PlaybackStateHolder {
         }
     }
 
-    /** A song's file was renamed: swap in its fresh details (new path) wherever it is queued. */
-    internal fun replaceSong(updated: Song) {
-        fun List<Song>.swapped() = map { if (it.id == updated.id) updated else it }
+    /**
+     * A file or folder was renamed: give every queued song its fresh details (new path) from
+     * [fresh], matched by id. Songs not in [fresh] stay as they are.
+     */
+    internal fun replaceSongs(fresh: List<Song>) {
+        val byId = fresh.associateBy { it.id }
+        fun List<Song>.swapped() = map { byId[it.id] ?: it }
         originalQueue = originalQueue.swapped()
         update { it.copy(queue = it.queue.swapped()) }
     }

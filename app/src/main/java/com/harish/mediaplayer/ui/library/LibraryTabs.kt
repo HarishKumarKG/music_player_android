@@ -166,6 +166,7 @@ fun FoldersTab(
     songs: List<Song>,
     sort: FolderSort,
     onOpen: (SongCollection) -> Unit,
+    onRenameFolder: (path: String) -> Unit,
     contentPadding: PaddingValues
 ) {
     val folders = remember(songs, sort) { songs.groupFolders().sortedByFolderSort(sort) }
@@ -180,7 +181,7 @@ fun FoldersTab(
                 subtitle = "${songCount(folder.songs.size)} · ${folder.path}",
                 onClick = { onOpen(SongCollection.Folder(folder.path)) },
                 leading = { IconTile(R.drawable.baseline_folder_24) },
-                trailingIcon = R.drawable.baseline_chevron_right_24
+                menu = listOf(MenuEntry("Rename folder", R.drawable.baseline_edit_24) { onRenameFolder(folder.path) })
             )
             ListDivider()
         }
@@ -188,7 +189,12 @@ fun FoldersTab(
 }
 
 @Composable
-fun BrowseTab(songs: List<Song>, handlers: SongListHandlers, contentPadding: PaddingValues) {
+fun BrowseTab(
+    songs: List<Song>,
+    handlers: SongListHandlers,
+    onRenameFolder: (path: String) -> Unit,
+    contentPadding: PaddingValues
+) {
     var dir by rememberSaveable { mutableStateOf<String?>(null) } // null = list of storages
     val listing = remember(songs, dir) { songs.browse(dir) }
 
@@ -212,7 +218,10 @@ fun BrowseTab(songs: List<Song>, handlers: SongListHandlers, contentPadding: Pad
                             }
                         )
                     },
-                    trailingIcon = R.drawable.baseline_chevron_right_24
+                    // storages (Internal storage, SD card) can't be renamed
+                    menu = if (d.isStorageRoot) emptyList()
+                    else listOf(MenuEntry("Rename folder", R.drawable.baseline_edit_24) { onRenameFolder(d.path) }),
+                    trailingIcon = if (d.isStorageRoot) R.drawable.baseline_chevron_right_24 else null
                 )
             }
             items(listing.songs, key = { "s" + it.id }, contentType = { "song" }) { song ->

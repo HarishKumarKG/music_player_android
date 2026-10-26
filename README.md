@@ -51,6 +51,15 @@ a rich notification, a sleep timer and polished light & dark themes.
 - Music **fades out over the last 30 seconds**, then playback stops and the app closes
 - Live countdown in the player and in the menu
 
+### Cast to a TV
+- **Cast** button in the full-screen player: finds **Chromecast / Google TV** and **DLNA smart TVs**
+  (Samsung, LG, Sony, Panasonic…) on your Wi-Fi
+- The current song continues on the TV from the same spot; the whole queue keeps playing there
+- The original file is sent as-is (FLAC / hi-res stays lossless); the TV shows title, artist, album and cover
+- Every control still works — app, notification, lock screen, headset — it just controls the TV
+- Phone volume keys and the slider in the Cast sheet change the **TV's** volume
+- **Stop casting** brings the music back to the phone, paused at the spot the TV reached
+
 ### Look & feel
 - **Light, Dark and System** themes, with a quick ☀️/🌙 toggle in the header
 - Animated **splash screen** and animated **"H" logo** with a sound-wave crossbar
@@ -95,9 +104,11 @@ com.harish.mediaplayer
 │   ├── library/                 LibraryRepository (favourites & playlists)
 │   ├── settings/                ThemeRepository
 │   └── playback/                PlaybackPersistence (last queue / song / position)
+├── cast/                        Casting: TvFinder (finds TVs), CastServer (phone → TV file server),
+│                                dlna/ (SSDP + UPnP SOAP) and googlecast/ (Cast SDK)
 ├── playback/
 │   ├── MediaPlayerService.kt    Foreground service: playback, notification, MediaSession,
-│   │                            audio focus, sleep timer
+│   │                            audio focus, sleep timer, playing on a TV
 │   ├── PlayerController.kt      Single entry point the UI uses to control playback
 │   └── PlaybackStateHolder.kt   Shared playback state (StateFlow) for service + UI
 └── ui/
@@ -167,8 +178,11 @@ GitHub Actions workflows in `.github/workflows/`:
 | `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_MEDIA_PLAYBACK` | Keep playing in the background |
 | `WAKE_LOCK` | Keep playing with the screen off |
 | `MANAGE_EXTERNAL_STORAGE` ("All files access") | Rename folders. Asked only when you first rename a folder |
+| `INTERNET`, `ACCESS_NETWORK_STATE`, `ACCESS_WIFI_STATE`, `CHANGE_WIFI_MULTICAST_STATE` | Cast to a TV on your own Wi-Fi |
+| `ACCESS_LOCAL_NETWORK` (Android 17+) | Find TVs on your Wi-Fi. Asked the first time you tap Cast |
 
-No internet permission – the app works fully offline and nothing leaves the device.
+Network is used only on your own Wi-Fi, for casting: the TV downloads the song from the phone.
+The app never contacts the internet, and nothing leaves your home network.
 
 ---
 

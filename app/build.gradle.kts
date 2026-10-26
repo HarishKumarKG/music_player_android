@@ -77,6 +77,10 @@ dependencies {
     ksp(libs.hilt.android.compiler)
     implementation(libs.androidx.hilt.lifecycle.viewmodel.compose) // hiltViewModel()
 
+    // Casting: Google Cast for Chromecast / Google TV (DLNA smart TVs use plain HTTP, no library)
+    implementation(libs.play.services.cast.framework)
+    implementation(libs.androidx.mediarouter)
+
     // Tests
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

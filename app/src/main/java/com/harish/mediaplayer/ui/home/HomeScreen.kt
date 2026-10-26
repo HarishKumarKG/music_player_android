@@ -65,11 +65,13 @@ import com.harish.mediaplayer.ui.library.SongCollection
 import com.harish.mediaplayer.ui.library.SongInfoDialog
 import com.harish.mediaplayer.ui.library.SongListHandlers
 import com.harish.mediaplayer.ui.library.SongsTab
+import com.harish.mediaplayer.ui.player.CastSheetHost
 import com.harish.mediaplayer.ui.player.MiniPlayer
 import com.harish.mediaplayer.ui.player.NowPlayingScreen
 import com.harish.mediaplayer.ui.player.PlayerActions
 import com.harish.mediaplayer.ui.player.QueueSheet
 import com.harish.mediaplayer.ui.player.SleepTimerSheetHost
+import com.harish.mediaplayer.ui.player.rememberCastButtonClick
 import com.harish.mediaplayer.ui.theme.BrandBackground
 import com.harish.mediaplayer.ui.theme.LocalIsDarkTheme
 import com.harish.mediaplayer.ui.themepicker.ThemeViewModel
@@ -168,6 +170,8 @@ private fun HomeScreen(
     var showNowPlaying by rememberSaveable { mutableStateOf(false) }
     var showQueue by rememberSaveable { mutableStateOf(false) }
     var showSleepTimer by rememberSaveable { mutableStateOf(false) }
+    var showCast by rememberSaveable { mutableStateOf(false) }
+    val openCast = rememberCastButtonClick { showCast = true }
     var searchQuery by rememberSaveable { mutableStateOf<String?>(null) } // null = not searching
 
     // Back while searching closes search (tabs/folders aren't shown then, so this is the only handler)
@@ -362,6 +366,7 @@ private fun HomeScreen(
                     onShuffleClick = actions.toggleShuffle,
                     onQueueClick = { showQueue = true },
                     onSleepTimerClick = { showSleepTimer = true },
+                    onCastClick = openCast,
                     onClose = { showNowPlaying = false }
                 )
             }
@@ -465,6 +470,10 @@ private fun HomeScreen(
     // "Up next" list, opened from the mini player or the full-screen player
     if (showSleepTimer) {
         SleepTimerSheetHost(onDismiss = { showSleepTimer = false })
+    }
+
+    if (showCast) {
+        CastSheetHost(onDismiss = { showCast = false })
     }
 
     if (showQueue) {

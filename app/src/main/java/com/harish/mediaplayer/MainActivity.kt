@@ -4,6 +4,7 @@ import android.app.UiModeManager
 import android.graphics.Color as AndroidColor
 import android.os.Build
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
@@ -47,6 +48,12 @@ class MainActivity : ComponentActivity() {
             // Sleep timer finished -> close the app (and remove it from Recents)
             LaunchedEffect(Unit) {
                 PlaybackStateHolder.closeRequests.collect { finishAndRemoveTask() }
+            }
+            // Short notes from playback, e.g. "Lost the connection to Living Room TV"
+            LaunchedEffect(Unit) {
+                PlaybackStateHolder.messages.collect {
+                    Toast.makeText(this@MainActivity, it, Toast.LENGTH_LONG).show()
+                }
             }
             val darkTheme = when (themeMode) {
                 ThemeMode.SYSTEM -> isSystemInDarkTheme()

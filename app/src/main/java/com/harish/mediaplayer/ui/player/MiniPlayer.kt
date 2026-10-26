@@ -135,7 +135,8 @@ fun MiniPlayer(
                         )
                     }
                     Text(
-                        text = song.artist,
+                        // While casting: "On Living Room TV · Artist"
+                        text = playback.castTvName?.let { "On $it · ${song.artist}" } ?: song.artist,
                         style = MaterialTheme.typography.bodySmall,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis

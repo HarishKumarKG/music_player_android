@@ -6,6 +6,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -68,6 +69,7 @@ fun NowPlayingScreen(
     onShuffleClick: () -> Unit,
     onQueueClick: () -> Unit,
     onSleepTimerClick: () -> Unit,
+    onCastClick: () -> Unit,
     onClose: () -> Unit
 ) {
     val duration = if (playback.durationMs > 0) playback.durationMs else song.durationMs
@@ -124,6 +126,17 @@ fun NowPlayingScreen(
                     textAlign = TextAlign.Center,
                     modifier = Modifier.weight(1f)
                 )
+                // Cast to a TV: red "connected" icon while the music plays on a TV
+                IconButton(onClick = onCastClick) {
+                    Icon(
+                        painterResource(
+                            if (playback.isCasting) R.drawable.baseline_cast_connected_24 else R.drawable.baseline_cast_24
+                        ),
+                        contentDescription = playback.castTvName?.let { "Playing on $it" } ?: "Play on a TV",
+                        tint = if (playback.isCasting) MaterialTheme.colorScheme.tertiary
+                               else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
                 // Sleep timer: red moon + countdown while it's running
                 val sleepStatus = sleepTimerStatus(playback)
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -185,6 +198,30 @@ fun NowPlayingScreen(
                         .fillMaxWidth()
                         .padding(top = 4.dp)
                 )
+                // "Playing on Living Room TV" (tap to change TV or come back to the phone)
+                playback.castTvName?.let { tv ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .padding(top = 8.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable(onClick = onCastClick)
+                            .padding(vertical = 4.dp)
+                    ) {
+                        Icon(
+                            painterResource(R.drawable.baseline_cast_connected_24),
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.tertiary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Text(
+                            text = if (playback.castConnecting) "Connecting to $tv…" else "Playing on $tv",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.tertiary,
+                            modifier = Modifier.padding(start = 6.dp)
+                        )
+                    }
+                }
 
                 Spacer(modifier = Modifier.height(20.dp))
 

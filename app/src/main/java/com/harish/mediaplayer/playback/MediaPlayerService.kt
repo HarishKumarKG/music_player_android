@@ -16,6 +16,9 @@ import android.media.AudioAttributes
 import android.media.AudioDeviceInfo
 import android.media.AudioFocusRequest
 import android.media.AudioManager
+import android.media.VolumeProvider
+import android.net.wifi.WifiManager
+import android.os.SystemClock
 import android.os.Build
 import android.os.PowerManager
 import androidx.core.content.ContextCompat
@@ -34,7 +37,16 @@ import androidx.core.app.ServiceCompat
 import com.harish.mediaplayer.MainActivity
 import com.harish.mediaplayer.R
 import com.harish.mediaplayer.data.playback.PlaybackPersistence
+import com.harish.mediaplayer.cast.CastDevice
+import com.harish.mediaplayer.cast.CastMedia
+import com.harish.mediaplayer.cast.CastRenderer
+import com.harish.mediaplayer.cast.CastServer
+import com.harish.mediaplayer.cast.RemoteState
+import com.harish.mediaplayer.cast.TvFinder
+import com.harish.mediaplayer.cast.audioMimeType
 import com.harish.mediaplayer.domain.model.Song
+import java.io.ByteArrayOutputStream
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -43,6 +55,8 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 /**
@@ -52,6 +66,11 @@ import kotlinx.coroutines.withContext
  * Uses Android's built-in MediaSession + Notification.MediaStyle (minSdk 30),
  * so no deprecated androidx.media "compat" classes are needed. The session makes the
  * same controls work on the lock screen, Bluetooth/headset buttons and the media panel.
+ *
+ * Casting: when you pick a TV, the same queue plays THERE instead of on the phone. Every
+ * button (app, notification, lock screen, headset) keeps working, it just goes to the TV.
+ * The TV downloads each song from a tiny server on the phone (CastServer), and we ask the TV
+ * once a second where it is, so the seek bar moves and the next song starts when one ends.
  */
 class MediaPlayerService : Service() {
 
@@ -65,6 +84,11 @@ class MediaPlayerService : Service() {
         const val EXTRA_POSITION = "position_ms"
         const val ACTION_SLEEP_TIMER = "com.harish.mediaplayer.SLEEP_TIMER"
         const val EXTRA_SLEEP_MINUTES = "sleep_minutes"
+        const val ACTION_CAST_TO = "com.harish.mediaplayer.CAST_TO"
+        const val EXTRA_DEVICE_ID = "device_id"
+        const val ACTION_STOP_CASTING = "com.harish.mediaplayer.STOP_CASTING"
+        const val ACTION_CAST_VOLUME = "com.harish.mediaplayer.CAST_VOLUME"
+        const val EXTRA_VOLUME = "volume"
         private const val SLEEP_FADE_MS = 30_000L // fade the volume out over the last 30 seconds
 
         private const val CHANNEL_ID = "media_playback_channel"
@@ -77,6 +101,9 @@ class MediaPlayerService : Service() {
         private const val SKIP_MS = 10_000L // size of one rewind / forward jump
         private const val TAG = "MediaPlayerService"
         private const val SAVE_EVERY_TICKS = 10 // 10 x 500ms = save position every 5s while playing
+
+        /** Telling the TV to stop must finish even when this service is being destroyed. */
+        private val detached = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     }
 
     private var mediaPlayer: MediaPlayer? = null
@@ -107,15 +134,38 @@ class MediaPlayerService : Service() {
      */
     private var pendingSeekMs: Long? = null
 
+    // ---- casting to a TV
+    private var castDevice: CastDevice? = null // set from "Connecting…" until casting ends
+    private var renderer: CastRenderer? = null    // remote control for the TV, once connected
+    private var castServer: CastServer? = null
+    private var connectJob: Job? = null
+    private var castJob: Job? = null              // sending the current song to the TV
+    private var followJob: Job? = null            // asking the TV where it is, once a second
+    private var volumeJob: Job? = null
+    private val tvMutex = Mutex()                 // one command at a time, in the order you pressed them
+    private var castPositionMs = 0L
+    private var castDurationMs = 0L
+    private var castLoaded = false                // the current song has reached the TV
+    private var castSeenPlaying = false           // ...and the TV has actually started it
+    private var castLoadedAt = 0L
+    private var castVolume: Int? = null
+    private var volumeProvider: VolumeProvider? = null
+    private var wifiLock: WifiManager.WifiLock? = null
+    private var castWakeLock: PowerManager.WakeLock? = null
+
+    private val casting: Boolean get() = castDevice != null
+
     /** Position to show everywhere (UI, notification, lock screen). */
     private val shownPositionMs: Long
-        get() = pendingSeekMs ?: mediaPlayer?.currentPosition?.toLong() ?: PlaybackStateHolder.state.value.positionMs
+        get() = if (casting) castPositionMs
+        else pendingSeekMs ?: mediaPlayer?.currentPosition?.toLong() ?: PlaybackStateHolder.state.value.positionMs
 
     /** Phone call, alarm, another music app...: pause and (for short interruptions) resume after. */
     private val focusRequest by lazy {
         AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
             .setAudioAttributes(musicAttributes)
             .setOnAudioFocusChangeListener { change ->
+                if (casting) return@setOnAudioFocusChangeListener // the TV plays, not the phone
                 when (change) {
                     AudioManager.AUDIOFOCUS_LOSS -> { resumeAfterFocusGain = false; pause() }  // another app took over
                     AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {                                // call / voice note
@@ -155,6 +205,7 @@ class MediaPlayerService : Service() {
     private val noisyReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             if (intent.action != AudioManager.ACTION_AUDIO_BECOMING_NOISY) return
+            if (casting) return // unplugging headphones doesn't matter while the TV plays
             resumeAfterFocusGain = false
             if (isPlaying) pause()
         }
@@ -220,6 +271,9 @@ class MediaPlayerService : Service() {
             ACTION_REWIND -> skipBy(-SKIP_MS)
             ACTION_FORWARD -> skipBy(SKIP_MS)
             ACTION_SLEEP_TIMER -> setSleepTimer(intent.getIntExtra(EXTRA_SLEEP_MINUTES, PlayerController.SLEEP_OFF))
+            ACTION_CAST_TO -> intent.getStringExtra(EXTRA_DEVICE_ID)?.let { startCasting(it) }
+            ACTION_STOP_CASTING -> endCasting()
+            ACTION_CAST_VOLUME -> setTvVolume(intent.getIntExtra(EXTRA_VOLUME, castVolume ?: 50))
         }
         return START_NOT_STICKY
     }
@@ -231,6 +285,10 @@ class MediaPlayerService : Service() {
     /** Start the song at the queue's current index (optionally from [startAtMs]). */
     private fun playCurrent(startAtMs: Long = 0L) {
         val song = currentSong ?: return
+        if (casting) {
+            castCurrent(startAtMs)
+            return
+        }
         pendingSeekMs = null
         mediaPlayer?.release() // always release the old player (no leaks)
         mediaPlayer = null
@@ -282,6 +340,16 @@ class MediaPlayerService : Service() {
     }
 
     private fun resumeOrPlay() {
+        if (casting) {
+            if (!castLoaded && castJob?.isActive != true) {
+                castCurrent(castPositionMs) // nothing on the TV yet (or the last try failed)
+            } else {
+                isPlaying = true
+                tv { it.play() }
+                onStateChanged()
+            }
+            return
+        }
         val player = mediaPlayer
         if (player == null) {
             // Nothing loaded yet, e.g. the app was restarted and the last song was restored:
@@ -314,6 +382,7 @@ class MediaPlayerService : Service() {
     }
 
     private fun pause() {
+        if (casting) tv { it.pause() }
         mediaPlayer?.pause()
         isPlaying = false
         stopProgressUpdates()
@@ -333,7 +402,8 @@ class MediaPlayerService : Service() {
     private fun previous() {
         val queue = PlaybackStateHolder.state.value.queue
         if (queue.isEmpty()) return
-        if ((mediaPlayer?.currentPosition ?: 0) > 3000) {
+        val position = if (casting) castPositionMs else (mediaPlayer?.currentPosition?.toLong() ?: 0L)
+        if (position > 3000) {
             seekTo(0)
             return
         }
@@ -343,6 +413,12 @@ class MediaPlayerService : Service() {
     }
 
     private fun seekTo(positionMs: Long) {
+        if (casting) {
+            castPositionMs = positionMs
+            if (castLoaded) tv { it.seekTo(positionMs) }
+            onStateChanged()
+            return
+        }
         val player = mediaPlayer
         if (player == null) {
             // Restored song not loaded yet: just remember where to start
@@ -358,7 +434,8 @@ class MediaPlayerService : Service() {
 
     /** Jump back / forward inside the song (the notification's ⏪ 10s / ⏩ 10s). */
     private fun skipBy(deltaMs: Long) {
-        val duration = mediaPlayer?.duration?.toLong()?.takeIf { it > 0 } ?: currentSong?.durationMs ?: return
+        val duration = (if (casting) castDurationMs else mediaPlayer?.duration?.toLong())?.takeIf { it > 0 }
+            ?: currentSong?.durationMs ?: return
         seekTo((shownPositionMs + deltaMs).coerceIn(0L, (duration - 1_000L).coerceAtLeast(0L)))
     }
 
@@ -412,6 +489,7 @@ class MediaPlayerService : Service() {
 
     /** Stop button: end playback, remove the notification, hide the mini player. */
     private fun stopPlayback() {
+        if (casting) endCasting(refresh = false) // Stop also stops the TV
         PlaybackPersistence.save(this) // keep the spot so the next launch can continue
         sleepJob?.cancel()             // stopping by hand also cancels the sleep timer
         sleepJob = null
@@ -428,6 +506,272 @@ class MediaPlayerService : Service() {
         )
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         stopSelf()
+    }
+
+    // ------------------------------------------------------------ casting to a TV
+
+    /**
+     * You picked a TV in the Cast sheet. The phone goes quiet and the current song continues on
+     * the TV from the same spot. Picking another TV while casting moves the music over to it.
+     */
+    private fun startCasting(deviceId: String) {
+        val device = TvFinder.find(deviceId) ?: run {
+            PlaybackStateHolder.showMessage("That TV is no longer available")
+            return
+        }
+        if (castDevice?.id == device.id) return
+        val position = shownPositionMs
+        if (casting) endCasting(refresh = false)
+
+        // Phone stops playing; the TV takes over
+        mediaPlayer?.release()
+        mediaPlayer = null
+        pendingSeekMs = null
+        stopProgressUpdates()
+        audioManager.abandonAudioFocusRequest(focusRequest)
+        resumeAfterFocusGain = false
+
+        castDevice = device
+        castPositionMs = position
+        castDurationMs = currentSong?.durationMs ?: 0L
+        castLoaded = false
+        isPlaying = currentSong != null // starts playing as soon as the TV is connected
+        acquireCastLocks()
+        PlaybackStateHolder.update { it.copy(castTvName = device.name, castConnecting = true, castVolume = null) }
+        if (currentSong != null) onStateChanged()
+
+        connectJob = scope.launch {
+            try {
+                val r = TvFinder.renderer(this@MediaPlayerService, device)
+                r.connect()
+                renderer = r
+                castServer = CastServer(this@MediaPlayerService)
+                PlaybackStateHolder.update { it.copy(castConnecting = false) }
+                useTvVolumeKeys(true)
+                followTv()
+                if (currentSong != null) castCurrent(castPositionMs)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "Couldn't connect to ${device.name}", e)
+                endCasting(message = e.message ?: "Couldn't connect to ${device.name}", stopTv = false)
+            }
+        }
+    }
+
+    /** Sends the current song to the TV and starts it at [startAtMs]. */
+    private fun castCurrent(startAtMs: Long) {
+        val song = currentSong ?: return
+        mediaPlayer?.release()
+        mediaPlayer = null
+        pendingSeekMs = null
+        stopProgressUpdates() // while casting, followTv() keeps the position up to date
+        castLoaded = false
+        castSeenPlaying = false
+        castPositionMs = startAtMs
+        castDurationMs = song.durationMs
+        isPlaying = true
+        goForeground(song)
+        onStateChanged()
+        loadArtwork(song)
+
+        val r = renderer ?: return // still connecting: startCasting() sends the song once connected
+        val server = castServer ?: return
+        castJob?.cancel()
+        castJob = scope.launch {
+            try {
+                val media = withContext(Dispatchers.IO) {
+                    server.forgetShared() // the previous song's link stops working
+                    val uri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, song.id)
+                    val mime = audioMimeType(song.fileName, song.mimeType)
+                    val url = server.share(uri, mime, song.fileName)
+                    val cover = coverJpeg(uri)?.let { server.shareBytes(it, "image/jpeg", "cover.jpg") }
+                    CastMedia(url, song.title, song.artist, song.album, mime, song.sizeBytes, song.durationMs, cover)
+                }
+                tvMutex.withLock { r.load(media, startAtMs) }
+                castLoaded = true
+                castLoadedAt = SystemClock.elapsedRealtime()
+                consecutiveErrors = 0
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "Couldn't play ${song.path} on ${r.device.name}", e)
+                val stillThere = runCatching { tvMutex.withLock { r.status() } }.getOrNull() != null
+                if (stillThere) {
+                    PlaybackStateHolder.showMessage(e.message ?: "${r.device.name} couldn't play ${song.title}")
+                    skipBrokenSong()
+                } else {
+                    endCasting(message = "Lost the connection to ${r.device.name}", stopTv = false)
+                }
+            }
+        }
+    }
+
+    /**
+     * Asks the TV once a second what it's doing: moves the seek bar, notices pause/play pressed
+     * on the TV's own remote, and starts the next song when one finishes.
+     */
+    private fun followTv() {
+        followJob?.cancel()
+        followJob = scope.launch {
+            var misses = 0
+            var ticks = 0
+            while (isActive) {
+                delay(1_000)
+                val r = renderer ?: return@launch
+                if (!castLoaded) continue
+                val status = tvMutex.withLock { r.status() }
+                if (status == null) {
+                    if (++misses >= 15) {
+                        endCasting(message = "Lost the connection to ${r.device.name}", stopTv = false)
+                        return@launch
+                    }
+                    continue
+                }
+                misses = 0
+                if (!castLoaded) continue // a new song started loading while we were asking
+                val wasPlaying = isPlaying
+                castPositionMs = status.positionMs
+                if (status.durationMs > 0) castDurationMs = status.durationMs
+                status.volume?.let { volume ->
+                    castVolume = volume
+                    volumeProvider?.currentVolume = volume
+                }
+                val sinceLoad = SystemClock.elapsedRealtime() - castLoadedAt
+                when (status.state) {
+                    RemoteState.PLAYING -> { castSeenPlaying = true; isPlaying = true }
+                    RemoteState.PAUSED -> { castSeenPlaying = true; isPlaying = false }
+                    RemoteState.IDLE -> if (castSeenPlaying) isPlaying = false // stopped on the TV
+                    RemoteState.BUFFERING -> Unit
+                    RemoteState.FINISHED -> if (castSeenPlaying || sinceLoad > 10_000) {
+                        castLoaded = false
+                        // "End of current song" sleep timer -> stop here; otherwise the next song
+                        if (stopAfterCurrentSong) goToSleep() else next()
+                        continue
+                    }
+                    RemoteState.ERROR -> if (sinceLoad > 2_000) {
+                        castLoaded = false
+                        PlaybackStateHolder.showMessage("${r.device.name} couldn't play this song's format")
+                        skipBrokenSong()
+                        continue
+                    }
+                }
+                PlaybackStateHolder.update { it.copy(castVolume = castVolume) }
+                if (isPlaying != wasPlaying) onStateChanged() else { publishState(); updateSession() }
+                if (++ticks % 5 == 0) PlaybackPersistence.save(this@MediaPlayerService)
+            }
+        }
+    }
+
+    /**
+     * Stops casting. The TV stops (unless it's already gone) and the phone is ready, paused,
+     * at the spot the TV had reached: press play to carry on listening on the phone.
+     */
+    private fun endCasting(message: String? = null, stopTv: Boolean = true, refresh: Boolean = true) {
+        if (!casting) return
+        val r = renderer
+        val server = castServer
+        val position = castPositionMs
+        castDevice = null
+        renderer = null
+        castServer = null
+        connectJob?.cancel()
+        castJob?.cancel()
+        followJob?.cancel()
+        volumeJob?.cancel()
+        castLoaded = false
+        detached.launch {
+            if (stopTv && r != null) runCatching { r.disconnect() }
+            withContext(Dispatchers.IO) { server?.stop() }
+        }
+        useTvVolumeKeys(false)
+        releaseCastLocks()
+        isPlaying = false
+        PlaybackStateHolder.update {
+            it.copy(positionMs = position, castTvName = null, castConnecting = false, castVolume = null)
+        }
+        message?.let { PlaybackStateHolder.showMessage(it) }
+        if (refresh && currentSong != null) onStateChanged()
+    }
+
+    /** Runs a command on the TV, after any command before it; a failure becomes a message. */
+    private fun tv(action: suspend (CastRenderer) -> Unit) {
+        val r = renderer ?: return
+        scope.launch {
+            try {
+                tvMutex.withLock { action(r) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                PlaybackStateHolder.showMessage(e.message ?: "${r.device.name} didn't respond")
+            }
+        }
+    }
+
+    /** The TV's own volume. Dragging the slider / holding a volume key sends only the last value. */
+    private fun setTvVolume(volume: Int) {
+        val r = renderer ?: return
+        val value = volume.coerceIn(0, 100)
+        castVolume = value
+        volumeProvider?.currentVolume = value
+        PlaybackStateHolder.update { it.copy(castVolume = value) }
+        volumeJob?.cancel()
+        volumeJob = scope.launch {
+            delay(150)
+            runCatching { tvMutex.withLock { r.setVolume(value) } }
+        }
+    }
+
+    /** While casting, the phone's volume keys change the TV's volume instead of the phone's. */
+    private fun useTvVolumeKeys(on: Boolean) {
+        if (on) {
+            val provider = object : VolumeProvider(VolumeProvider.VOLUME_CONTROL_ABSOLUTE, 100, castVolume ?: 50) {
+                override fun onSetVolumeTo(volume: Int) = setTvVolume(volume)
+                override fun onAdjustVolume(direction: Int) = setTvVolume(currentVolume + direction * 5)
+            }
+            volumeProvider = provider
+            session.setPlaybackToRemote(provider)
+        } else if (volumeProvider != null) {
+            volumeProvider = null
+            session.setPlaybackToLocal(musicAttributes)
+        }
+    }
+
+    /** The phone serves the songs to the TV, so keep Wi-Fi fast and the CPU awake. */
+    private fun acquireCastLocks() {
+        if (wifiLock == null) {
+            wifiLock = getSystemService(WifiManager::class.java)
+                ?.createWifiLock(WifiManager.WIFI_MODE_FULL_LOW_LATENCY, "music-player:cast")
+                ?.apply { setReferenceCounted(false); acquire() }
+        }
+        if (castWakeLock == null) {
+            castWakeLock = getSystemService(PowerManager::class.java)
+                ?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "music-player:cast")
+                ?.apply { setReferenceCounted(false); acquire(12 * 60 * 60 * 1000L) }
+        }
+    }
+
+    private fun releaseCastLocks() {
+        wifiLock?.takeIf { it.isHeld }?.release()
+        wifiLock = null
+        castWakeLock?.takeIf { it.isHeld }?.release()
+        castWakeLock = null
+    }
+
+    /** The album cover as a JPEG for the TV's screen; null when the song has none. */
+    private fun coverJpeg(uri: android.net.Uri): ByteArray? = try {
+        val bitmap = contentResolver.loadThumbnail(uri, Size(512, 512), null)
+        ByteArrayOutputStream().use { out ->
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 90, out)
+            out.toByteArray()
+        }
+    } catch (e: Exception) {
+        null
+    }
+
+    private fun castNotificationText(): String? {
+        val device = castDevice ?: return null
+        return if (renderer == null) "Connecting to ${device.name}…" else "On ${device.name}"
     }
 
     // ------------------------------------------------------------ state + UI
@@ -453,7 +797,8 @@ class MediaPlayerService : Service() {
             it.copy(
                 isPlaying = isPlaying,
                 positionMs = shownPositionMs,
-                durationMs = player?.duration?.toLong() ?: it.durationMs
+                durationMs = if (casting) castDurationMs.takeIf { d -> d > 0 } ?: it.durationMs
+                             else player?.duration?.toLong() ?: it.durationMs
             )
         }
     }
@@ -484,7 +829,10 @@ class MediaPlayerService : Service() {
                 .putString(MediaMetadata.METADATA_KEY_TITLE, song.title)
                 .putString(MediaMetadata.METADATA_KEY_ARTIST, song.artist)
                 .putString(MediaMetadata.METADATA_KEY_ALBUM, song.album)
-                .putLong(MediaMetadata.METADATA_KEY_DURATION, player?.duration?.toLong() ?: song.durationMs)
+                .putLong(
+                    MediaMetadata.METADATA_KEY_DURATION,
+                    (if (casting) castDurationMs.takeIf { it > 0 } else player?.duration?.toLong()) ?: song.durationMs
+                )
                 .putBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART, artwork.takeIf { artworkSongId == song.id })
                 .build()
         )
@@ -569,9 +917,10 @@ class MediaPlayerService : Service() {
         }
 
         return Notification.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.drawable.baseline_music_note_24)
+            .setSmallIcon(if (casting) R.drawable.baseline_cast_connected_24 else R.drawable.baseline_music_note_24)
             .setContentTitle(song.title)
             .setContentText(song.artist)
+            .setSubText(castNotificationText())                        // "On Living Room TV" while casting
             .setLargeIcon(artwork.takeIf { artworkSongId == song.id }) // song thumbnail
             .setContentIntent(openAppIntent())                         // tap -> open the app
             .setDeleteIntent(serviceIntent(ACTION_STOP, 4))            // swiped away (when paused) -> stop
@@ -593,6 +942,13 @@ class MediaPlayerService : Service() {
     }
 
     override fun onDestroy() {
+        // Leaving while casting: stop the TV too (it can't get the songs from the phone any more)
+        renderer?.let { r -> detached.launch { runCatching { r.disconnect() } } }
+        castServer?.let { server -> detached.launch(Dispatchers.IO) { server.stop() } }
+        renderer = null
+        castServer = null
+        castDevice = null
+        releaseCastLocks()
         PlaybackPersistence.save(this) // last chance to remember the position
         unregisterReceiver(noisyReceiver)
         audioManager.abandonAudioFocusRequest(focusRequest)

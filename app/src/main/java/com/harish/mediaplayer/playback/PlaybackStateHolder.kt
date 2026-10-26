@@ -26,6 +26,14 @@ object PlaybackStateHolder {
         _closeRequests.tryEmit(Unit)
     }
 
+    // Short messages for the user ("Lost the connection to Living Room TV"), shown as a toast
+    private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 4)
+    val messages: SharedFlow<String> = _messages.asSharedFlow()
+
+    internal fun showMessage(text: String) {
+        _messages.tryEmit(text)
+    }
+
     private var originalQueue: List<Song> = emptyList() // the list order the user saw
 
     internal fun update(transform: (PlaybackState) -> PlaybackState) {

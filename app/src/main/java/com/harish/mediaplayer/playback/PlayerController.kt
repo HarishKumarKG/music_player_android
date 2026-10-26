@@ -51,6 +51,23 @@ object PlayerController {
     const val SLEEP_OFF = 0
     const val SLEEP_END_OF_SONG = -1
 
+    /** Play on this TV (from the Cast sheet). The current song continues there. */
+    fun castTo(context: Context, deviceId: String) = context.startService(
+        Intent(context, MediaPlayerService::class.java)
+            .setAction(MediaPlayerService.ACTION_CAST_TO)
+            .putExtra(MediaPlayerService.EXTRA_DEVICE_ID, deviceId)
+    )
+
+    /** Back to the phone: the TV stops and the phone is ready (paused) at the same spot. */
+    fun stopCasting(context: Context) = send(context, MediaPlayerService.ACTION_STOP_CASTING)
+
+    /** The TV's own volume, 0..100. */
+    fun setCastVolume(context: Context, volume: Int) = context.startService(
+        Intent(context, MediaPlayerService::class.java)
+            .setAction(MediaPlayerService.ACTION_CAST_VOLUME)
+            .putExtra(MediaPlayerService.EXTRA_VOLUME, volume)
+    )
+
     /** Shuffle only reorders the queue; the current song keeps playing. */
     fun toggleShuffle(context: Context) {
         PlaybackStateHolder.toggleShuffle()

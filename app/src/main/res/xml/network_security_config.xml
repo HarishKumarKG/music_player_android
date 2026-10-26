@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    DLNA smart TVs only speak plain http:// (no https) on the home network, and Android blocks
+    plain http by default. The app never contacts the internet, so allowing it is safe here.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

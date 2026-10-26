@@ -1,6 +1,11 @@
 package com.harish.mediaplayer.ui.navigation
 
 import androidx.compose.material3.DrawerValue
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
@@ -64,7 +69,13 @@ fun AppNavHost(
     ) {
         NavHost(
             navController = navController,
-            startDestination = startDestination
+            startDestination = startDestination,
+            // Short, light animations. The default is a slow 0.7 s cross-fade, which made going
+            // back (especially the back swipe) feel laggy.
+            enterTransition = { fadeIn(tween(220)) + slideInHorizontally(tween(220)) { it / 12 } },
+            exitTransition = { fadeOut(tween(150)) },
+            popEnterTransition = { fadeIn(tween(220)) },
+            popExitTransition = { fadeOut(tween(180)) + slideOutHorizontally(tween(220)) { it / 12 } }
         ) {
             composable(route = Destination.Home.route) {
                 HomeRoute(onMenuClick = openDrawer)

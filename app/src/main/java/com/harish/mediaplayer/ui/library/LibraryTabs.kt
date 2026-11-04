@@ -47,12 +47,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import com.harish.mediaplayer.R
-import com.harish.mediaplayer.domain.library.FolderSort
 import com.harish.mediaplayer.domain.library.browse
 import com.harish.mediaplayer.domain.library.browseParent
 import com.harish.mediaplayer.domain.library.groupAlbums
-import com.harish.mediaplayer.domain.library.groupFolders
-import com.harish.mediaplayer.domain.library.sortedByFolderSort
+import com.harish.mediaplayer.domain.library.songsUnder
 import com.harish.mediaplayer.domain.library.storageLabel
 import com.harish.mediaplayer.domain.library.storageRootOf
 import com.harish.mediaplayer.domain.model.LibraryData
@@ -62,11 +60,10 @@ import com.harish.mediaplayer.ui.common.SongThumbnail
 import com.harish.mediaplayer.ui.common.songCount
 import java.io.File
 
-/** The four tabs under the header. */
+/** The three tabs under the header. Folders are reached through Browse. */
 enum class LibraryTab(val label: String, @DrawableRes val icon: Int) {
     SONGS("Songs", R.drawable.baseline_music_note_24),
     PLAYLISTS("Playlists", R.drawable.baseline_queue_music_24),
-    FOLDERS("Folders", R.drawable.baseline_folder_24),
     BROWSE("Browse", R.drawable.baseline_smartphone_24)
 }
 
@@ -162,41 +159,20 @@ fun PlaylistsTab(
 }
 
 @Composable
-fun FoldersTab(
-    songs: List<Song>,
-    sort: FolderSort,
-    onOpen: (SongCollection) -> Unit,
-    onRenameFolder: (path: String) -> Unit,
-    contentPadding: PaddingValues
-) {
-    val folders = remember(songs, sort) { songs.groupFolders().sortedByFolderSort(sort) }
-    if (folders.isEmpty()) {
-        EmptyState("No folders with songs")
-        return
-    }
-    LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = contentPadding) {
-        items(folders, key = { it.path }) { folder ->
-            CollectionRow(
-                title = folder.name,
-                subtitle = "${songCount(folder.songs.size)} · ${folder.path}",
-                onClick = { onOpen(SongCollection.Folder(folder.path)) },
-                leading = { IconTile(R.drawable.baseline_folder_24) },
-                menu = listOf(MenuEntry("Rename folder", R.drawable.baseline_edit_24) { onRenameFolder(folder.path) })
-            )
-            ListDivider()
-        }
-    }
-}
-
-@Composable
 fun BrowseTab(
     songs: List<Song>,
     handlers: SongListHandlers,
     onRenameFolder: (path: String) -> Unit,
+    /** Plays the given songs in random order (shuffle stays on for next / previous). */
+    onShufflePlay: (List<Song>) -> Unit,
+    /** Plays the given songs in order, from the first. */
+    onPlayAll: (List<Song>) -> Unit,
     contentPadding: PaddingValues
 ) {
     var dir by rememberSaveable { mutableStateOf<String?>(null) } // null = list of storages
     val listing = remember(songs, dir) { songs.browse(dir) }
+    // This folder's songs plus everything in its sub-folders
+    val allInside = remember(songs, dir) { dir?.let { songs.songsUnder(it) }.orEmpty() }
 
     // Back goes one folder up while browsing
     BackHandler(enabled = dir != null) { dir = browseParent(dir!!) }
@@ -204,6 +180,16 @@ fun BrowseTab(
     Column(modifier = Modifier.fillMaxSize()) {
         Breadcrumb(dir = dir, onUp = { dir = dir?.let(::browseParent) })
         LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = contentPadding) {
+            // Inside a folder: Shuffle play / Play everything here, sub-folders included
+            if (allInside.isNotEmpty()) {
+                item(key = "play-buttons", contentType = "buttons") {
+                    PlayButtonsRow(
+                        count = allInside.size,
+                        onShufflePlay = { onShufflePlay(allInside) },
+                        onPlayAll = { onPlayAll(allInside) }
+                    )
+                }
+            }
             items(listing.dirs, key = { "d" + it.path }) { d ->
                 CollectionRow(
                     title = d.label,
@@ -218,10 +204,12 @@ fun BrowseTab(
                             }
                         )
                     },
-                    // storages (Internal storage, SD card) can't be renamed
-                    menu = if (d.isStorageRoot) emptyList()
-                    else listOf(MenuEntry("Rename folder", R.drawable.baseline_edit_24) { onRenameFolder(d.path) }),
-                    trailingIcon = if (d.isStorageRoot) R.drawable.baseline_chevron_right_24 else null
+                    // ⋮ Shuffle play a sub-folder without opening it; storages can't be renamed
+                    menu = listOfNotNull(
+                        MenuEntry("Shuffle play", R.drawable.baseline_shuffle_24) { onShufflePlay(songs.songsUnder(d.path)) },
+                        if (d.isStorageRoot) null
+                        else MenuEntry("Rename folder", R.drawable.baseline_edit_24) { onRenameFolder(d.path) }
+                    )
                 )
             }
             items(listing.songs, key = { "s" + it.id }, contentType = { "song" }) { song ->
@@ -263,7 +251,8 @@ private fun Breadcrumb(dir: String?, onUp: () -> Unit) {
 }
 
 /**
- * "Shuffle play" (big red button) + "Play" + the song count, at the top of the Songs tab.
+ * "Shuffle play" (big red button) + "Play" + the song count, at the top of the Songs tab
+ * and inside a Browse folder (there it counts the sub-folders' songs too).
  * Example: tap Shuffle play -> all 250 songs in random order, starting right away.
  */
 @Composable

@@ -35,9 +35,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.harish.mediaplayer.R
-import com.harish.mediaplayer.domain.library.FolderSort
 import com.harish.mediaplayer.domain.library.SongSearchIndex
-import com.harish.mediaplayer.domain.library.songParent
 import com.harish.mediaplayer.domain.model.LibraryData
 import com.harish.mediaplayer.domain.model.PlaybackState
 import com.harish.mediaplayer.domain.model.Playlist
@@ -55,7 +53,6 @@ import com.harish.mediaplayer.ui.library.AddToPlaylistDialog
 import com.harish.mediaplayer.ui.library.BrowseTab
 import com.harish.mediaplayer.ui.library.CollectionScreen
 import com.harish.mediaplayer.ui.library.ConfirmDialog
-import com.harish.mediaplayer.ui.library.FoldersTab
 import com.harish.mediaplayer.ui.library.LibraryTab
 import com.harish.mediaplayer.ui.library.LibraryTabBar
 import com.harish.mediaplayer.ui.library.MenuEntry
@@ -159,7 +156,6 @@ private fun HomeScreen(
 ) {
     val songs = state.songs
     var sortOrder by rememberSaveable { mutableStateOf(SortOrder.DATE_MODIFIED) } // songs; survives rotation
-    var folderSort by rememberSaveable { mutableStateOf(FolderSort.NAME_ASC) }   // Folders tab list
     val sortedSongs = remember(songs, sortOrder) { songs.sortedByOrder(sortOrder) }
     // Only these two coarse values drive the list; derivedStateOf ignores position ticks
     val currentSong by remember { derivedStateOf { playbackState.value.currentSong } }
@@ -243,18 +239,13 @@ private fun HomeScreen(
                     .padding(top = innerPadding.calculateTopPadding())
             ) {
                 // Header buttons depend on what's on screen:
-                //  songs lists -> song sort + refresh, folder list -> folder sort + refresh,
+                //  songs lists -> song sort + refresh,
                 //  playlists overview / a custom playlist -> nothing (order is yours), browse -> refresh
                 val openedNow = openKey?.let(SongCollection::fromKey)
                 val headerSort: HeaderSort? = when {
                     openedNow is SongCollection.CustomPlaylist -> null
                     openedNow != null -> songHeaderSort(sortOrder) { sortOrder = it }
                     selectedTab == LibraryTab.SONGS -> songHeaderSort(sortOrder) { sortOrder = it }
-                    selectedTab == LibraryTab.FOLDERS -> HeaderSort(
-                        options = FolderSort.entries.map { it.label },
-                        selected = folderSort.ordinal,
-                        onSelect = { folderSort = FolderSort.entries[it] }
-                    )
                     else -> null
                 }
 
@@ -335,13 +326,13 @@ private fun HomeScreen(
                             onDelete = { deleteTarget = it },
                             contentPadding = listPadding
                         )
-                        LibraryTab.FOLDERS -> FoldersTab(
-                            songs, folderSort,
-                            onOpen = { openKey = it.key },
+                        LibraryTab.BROWSE -> BrowseTab(
+                            songs, handlers,
                             onRenameFolder = { renameFolderPath = it },
+                            onShufflePlay = actions.shufflePlay,
+                            onPlayAll = { list -> actions.playFromList(list, 0) },
                             contentPadding = listPadding
                         )
-                        LibraryTab.BROWSE -> BrowseTab(songs, handlers, onRenameFolder = { renameFolderPath = it }, contentPadding = listPadding)
                     }
                 }
             }
@@ -528,13 +519,6 @@ private fun OpenedCollection(
             val list = sortedSongs.filter { it.album == collection.name }
             CollectionScreen(
                 title = collection.name, songs = list, handlers = handlers, onBack = onClose,
-                onPlayAll = { playAll(list) }, onShuffleAll = { shuffleAll(list) }, contentPadding = contentPadding
-            )
-        }
-        is SongCollection.Folder -> {
-            val list = sortedSongs.filter { songParent(it) == collection.path }
-            CollectionScreen(
-                title = collection.path.substringAfterLast('/'), songs = list, handlers = handlers, onBack = onClose,
                 onPlayAll = { playAll(list) }, onShuffleAll = { shuffleAll(list) }, contentPadding = contentPadding
             )
         }

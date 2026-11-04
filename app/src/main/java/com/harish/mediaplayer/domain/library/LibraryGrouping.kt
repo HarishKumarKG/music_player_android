@@ -5,8 +5,6 @@ import java.io.File
 
 data class AlbumGroup(val name: String, val artist: String, val songs: List<Song>)
 
-data class FolderGroup(val path: String, val name: String, val songs: List<Song>)
-
 private val byNameIgnoringCase = String.CASE_INSENSITIVE_ORDER
 
 fun List<Song>.groupAlbums(): List<AlbumGroup> =
@@ -16,29 +14,6 @@ fun List<Song>.groupAlbums(): List<AlbumGroup> =
             AlbumGroup(album, artist, songs)
         }
         .sortedWith(compareBy(byNameIgnoringCase) { it.name })
-
-/** Every folder that directly contains songs. */
-fun List<Song>.groupFolders(): List<FolderGroup> =
-    groupBy { songParent(it) }
-        .map { (path, songs) -> FolderGroup(path, path.substringAfterLast('/').ifEmpty { path }, songs) }
-        .sortedWith(compareBy(byNameIgnoringCase) { it.name })
-
-/** How the Folders tab is ordered. */
-enum class FolderSort(val label: String) {
-    NAME_ASC("Name (A–Z)"),
-    NAME_DESC("Name (Z–A)"),
-    MOST_SONGS("Most songs"),
-    RECENTLY_UPDATED("Recently updated") // folder with the newest song first
-}
-
-fun List<FolderGroup>.sortedByFolderSort(sort: FolderSort): List<FolderGroup> = when (sort) {
-    FolderSort.NAME_ASC -> sortedWith(compareBy(byNameIgnoringCase) { it.name })
-    FolderSort.NAME_DESC -> sortedWith(compareByDescending(byNameIgnoringCase) { it.name })
-    FolderSort.MOST_SONGS -> sortedByDescending { it.songs.size }
-    FolderSort.RECENTLY_UPDATED -> sortedByDescending { f -> f.songs.maxOf { it.dateModifiedSec } }
-}
-
-fun songParent(song: Song): String = File(song.path).parent ?: "/"
 
 data class BrowseDir(val path: String, val label: String, val songCount: Int, val isStorageRoot: Boolean)
 
@@ -80,6 +55,19 @@ fun List<Song>.browse(dir: String?): BrowseListing {
         .map { (path, songs) -> BrowseDir(path, path.substringAfterLast('/'), songs.size, isStorageRoot = false) }
         .sortedWith(compareBy(byNameIgnoringCase) { it.label })
     return BrowseListing(dirs, here.sortedWith(compareBy(byNameIgnoringCase) { File(it.path).name }))
+}
+
+/**
+ * Every song in [dir] AND all its sub-folders, folder by folder, in file-name order.
+ * Example: "Music" with a.mp3, Tamil/b.mp3, Tamil/Old/c.mp3 -> [a, b, c].
+ * Used by Shuffle play / Play inside the Browse tab.
+ */
+fun List<Song>.songsUnder(dir: String): List<Song> {
+    val prefix = dir.trimEnd('/') + "/"
+    return filter { it.path.startsWith(prefix) }.sortedWith(
+        compareBy<Song, String>(byNameIgnoringCase) { File(it.path).parent.orEmpty() }
+            .thenBy(byNameIgnoringCase) { File(it.path).name }
+    )
 }
 
 /** Parent folder in the browser; a storage root goes back to the top level (null). */

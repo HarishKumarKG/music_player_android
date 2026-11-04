@@ -1,11 +1,9 @@
 package com.harish.mediaplayer.domain
 
-import com.harish.mediaplayer.domain.library.FolderSort
 import com.harish.mediaplayer.domain.library.browse
 import com.harish.mediaplayer.domain.library.browseParent
 import com.harish.mediaplayer.domain.library.groupAlbums
-import com.harish.mediaplayer.domain.library.groupFolders
-import com.harish.mediaplayer.domain.library.sortedByFolderSort
+import com.harish.mediaplayer.domain.library.songsUnder
 import com.harish.mediaplayer.domain.library.storageLabel
 import com.harish.mediaplayer.domain.library.storageRootOf
 import com.harish.mediaplayer.song
@@ -29,20 +27,6 @@ class LibraryGroupingTest {
         assertEquals(listOf("Hits", "Solo"), albums.map { it.name })
         assertEquals("Various artists", albums.first { it.name == "Hits" }.artist)
         assertEquals("C", albums.first { it.name == "Solo" }.artist)
-    }
-
-    @Test
-    fun `folders are the direct parents of songs`() {
-        val folders = songs.groupFolders().associate { it.path to it.songs.size }
-        assertEquals(2, folders["$internal/Music/Tamil"])
-        assertEquals(1, folders["$internal/Music"])
-        assertEquals(1, folders["/storage/1A2B-3C4D/Songs"])
-    }
-
-    @Test
-    fun `folder sort by most songs`() {
-        val sorted = songs.groupFolders().sortedByFolderSort(FolderSort.MOST_SONGS)
-        assertEquals("Tamil", sorted.first().name)
     }
 
     @Test
@@ -73,5 +57,20 @@ class LibraryGroupingTest {
         assertEquals("$internal/Music", browseParent("$internal/Music/Tamil"))
         assertEquals(internal, browseParent("$internal/Music"))
         assertNull(browseParent(internal))
+    }
+
+    @Test
+    fun `songs under a folder include every sub folder, folder by folder`() {
+        val m = "/storage/emulated/0/Music"
+        val list = listOf(
+            song(1, path = "$m/Tamil/Old/c.mp3"),
+            song(2, path = "$m/b.mp3"),
+            song(3, path = "$m/Tamil/a.mp3"),
+            song(4, path = "$m/a.mp3"),
+            song(5, path = "/storage/emulated/0/Musical/x.mp3"), // different folder, similar name
+            song(6, path = "/storage/emulated/0/Podcasts/p.mp3")
+        )
+        assertEquals(listOf(4L, 2L, 3L, 1L), list.songsUnder(m).map { it.id })
+        assertEquals(listOf(3L, 1L), list.songsUnder("$m/Tamil/").map { it.id })
     }
 }

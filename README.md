@@ -18,17 +18,18 @@ a rich notification, a sleep timer and polished light & dark themes.
 ### Library
 - **Search** – live results as you type, across title, artist, album and file name
   (case- and accent-insensitive, words in any order)
-- **Four tabs** as slim pills: Songs · Playlists · Folders · Browse; search sits in the header
+- **Three tabs** as slim pills: Songs · Playlists · Browse; search sits in the header
 - **Shuffle play** – one tap at the top of the Songs tab plays everything in random order (also on every album, folder and playlist)
 - **Now-playing bars** – a little animated equalizer marks the song that's playing, in the list and the mini player
 - **Songs** – every song on the device with album art, sorted by *date modified* or *name (A–Z / Z–A)*
 - **Favourites** – ⋮ → *Add to favourites* on any song (favourites show a small ♥)
 - **Playlists** – create, rename, delete, add/remove songs and **drag to reorder**
 - **Rename file** – ⋮ → *Rename file* changes the real file name on the phone (extension kept; Android asks once for files made by other apps). Favourites and playlists keep the song
-- **Rename folders** – ⋮ on a folder in the Folders or Browse tab → *Rename folder*. Needs *All files access*, switched on once (the app opens that setting for you)
+- **Rename folders** – ⋮ on a folder in the Browse tab → *Rename folder*. Needs *All files access*, switched on once (the app opens that setting for you)
 - **Albums** – grouped automatically, with artwork
-- **Folders** – every folder that contains music, sortable by name, song count or last update
 - **Browse** – file-manager style navigation through internal storage and SD card, with breadcrumbs
+  - Inside a folder: **Shuffle play** / **Play** everything in it, **sub-folders included**
+  - ⋮ on any folder or storage → *Shuffle play* without opening it
 - **Fast start-up** – the song list is cached and shown instantly, then refreshed in the background
 - Pull new downloads in any time: **pull the list down** to refresh
 
@@ -98,7 +99,7 @@ com.harish.mediaplayer
 ├── MainActivity.kt              Theme, splash, navigation host
 ├── domain/                      Pure Kotlin – no Android UI
 │   ├── model/                   Song, SortOrder, Playlist, LibraryData, ThemeMode, PlaybackState
-│   └── library/                 Grouping & search: albums, folders, folder sort, browse tree, song search
+│   └── library/                 Grouping & search: albums, browse tree, songs under a folder, song search
 ├── data/
 │   ├── song/                    SongRepository (MediaStore + JSON cache), SongJson
 │   ├── library/                 LibraryRepository (favourites & playlists)
@@ -156,7 +157,7 @@ Install on a connected device:
 ```bash
 ./gradlew testDebugUnitTest
 ```
-Tests cover sorting, search, album/folder grouping, the browse tree and the play queue / shuffle logic.
+Tests cover sorting, search, album grouping, the browse tree and the play queue / shuffle logic.
 
 ---
 
